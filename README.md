@@ -1,7 +1,7 @@
-# VecLane — Actuarial Analytics & Workflow Platform
+# ArcRho
 
-VecLane is a modular analytics and workflow platform for actuarial reserving and insurance modeling.
-It combines a modern web interface, Python-based analytics services, and Excel-integrated workflows to support structured, repeatable, and scalable actuarial analysis.
+ArcRho is an actuarial data automation platform focused on loss reserving analytics.
+It provides a structured framework for transforming insurance loss data into reproducible reserving workflows, helping actuaries reduce manual effort while maintaining transparency and control over assumptions.
 
 ## Frontend Preview
 
