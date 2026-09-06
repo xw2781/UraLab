@@ -17,6 +17,7 @@ index is a summary of those lines, not a second source of truth.
 | [hosted_save_http_transport.md](hosted_save_http_transport.md) | Dataset-sidecar and DFM-method pilot implemented; the broader rollout is still proposed. |
 | [hosted_workspace_http_transport.md](hosted_workspace_http_transport.md) | Phase 1 reads and Phase 2 engine calculations implemented; the bounded-server foundation, SSE, and small writes remain. |
 | [local_runtime_log_retention_plan.md](local_runtime_log_retention_plan.md) | Audit complete (2026-08-09); remediation not started. |
+| [manual_input_stored_length_resq_alignment.md](manual_input_stored_length_resq_alignment.md) | Investigation notes (2026-09-06): what ResQ's GUI allows for a manual triangle's stored length and coarse-display paste, the gap to ArcRho, and eight questions to answer against the ResQ API before planning. |
 | [persisted_json_contract_v4.md](persisted_json_contract_v4.md) | In progress: steps 1-5 landed, step 6 (the conversion script) is next. |
 
 ## Completed
