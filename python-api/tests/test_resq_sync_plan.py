@@ -419,6 +419,21 @@ class ResqSyncPlanTests(unittest.TestCase):
             sync.CHANGED_BOTH,
         )
 
+    def test_a_pair_with_matching_timestamps_is_synchronized_whatever_the_baseline_says(self):
+        # An import copies ResQ over ArcRho and stamps both with the same time
+        # without recording a baseline, so the pair the last export saved
+        # would otherwise report an edit on both sides.
+        entry = _baseline(arcrho_timestamp=100, resq_timestamp=150)["items"]["paid loss"]
+
+        self.assertEqual(
+            sync.changed_since_baseline(_item(timestamp=300), _item(timestamp=300), entry),
+            sync.CHANGED_NEITHER,
+        )
+        review = sync.export_review(_item(timestamp=300), _item(timestamp=300), entry)
+        self.assertEqual(review["changed"], sync.CHANGED_NEITHER)
+        self.assertFalse(review["overwrites_edit"])
+        self.assertEqual(review["status"], "Synchronized")
+
     def test_changed_since_baseline_is_blank_when_no_pair_can_be_measured_against(self):
         entry = _baseline()["items"]["paid loss"]
         incomplete = dict(entry, resq_timestamp=None)
@@ -441,7 +456,9 @@ class ResqSyncPlanTests(unittest.TestCase):
         self.assertEqual(settled["changed"], sync.CHANGED_NEITHER)
         self.assertFalse(settled["overwrites_edit"])
         self.assertEqual(settled["status"], "Synchronized")
-        self.assertEqual(settled["detail"], "Neither side changed since the last export.")
+        self.assertEqual(
+            settled["detail"], "Neither side has changed since the two were last synchronized."
+        )
 
         edited = sync.export_review(arcrho, _item(timestamp=300), entry)
         self.assertEqual(edited["changed"], sync.CHANGED_RESQ)

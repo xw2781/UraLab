@@ -229,6 +229,11 @@ def changed_since_baseline(
 
     This is what separates a real ResQ edit from a ResQ timestamp that is only
     newer because the last export stamped it.
+
+    A pair whose two timestamps match is ``CHANGED_NEITHER`` whatever the
+    baseline says: only a copy of one side over the other leaves both with
+    the same stamp, and an import records no baseline, so the pair the last
+    export saved would otherwise call that copy an edit on both sides.
     """
 
     if not isinstance(baseline, Mapping) or not baseline:
@@ -239,6 +244,10 @@ def changed_since_baseline(
     remote_changed = _changed_from_baseline(resq or None, baseline, "resq")
     if local_changed is None or remote_changed is None:
         return ""
+    if arcrho and resq and _timestamps_equal(
+        arcrho.get("modified_timestamp"), resq.get("modified_timestamp")
+    ):
+        return CHANGED_NEITHER
     if local_changed and remote_changed:
         return CHANGED_BOTH
     if local_changed:
@@ -258,7 +267,7 @@ _EXPORT_REVIEW_TEXT = {
         "Only ResQ changed since the last export; the ArcRho copy overwrites that change.",
     ),
     CHANGED_ARCRHO: ("ArcRho changed", "Only ArcRho changed since the last export."),
-    CHANGED_NEITHER: ("Synchronized", "Neither side changed since the last export."),
+    CHANGED_NEITHER: ("Synchronized", "Neither side has changed since the two were last synchronized."),
 }
 
 

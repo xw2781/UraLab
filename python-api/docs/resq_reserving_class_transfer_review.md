@@ -43,7 +43,7 @@ cannot drift into describing one comparison two different ways.
 | **Held By** | `Both`, `ArcRho only`, or `ResQ only`. |
 | **ArcRho Timestamp**, **ResQ Timestamp** | The pair the comparison read, as text, never re-parsed by the macro. `-` where that side has no copy. |
 | **Newer** | `ArcRho`, `ResQ`, or `Same` (`sync.newer_side`). The plain fact about the two times, with no warning tone: after a transfer the target side always holds the newer stamp, so on its own it means very little. |
-| **Changed Since Last Run** | `ArcRho`, `ResQ`, `Both`, or `None`, measured by `sync.changed_since_baseline` against the timestamp pair saved when the item was last exported or synchronized. `No baseline yet` where no pair has been saved, in which case the row falls back to the raw timestamp comparison. |
+| **Changed Since Last Run** | `ArcRho`, `ResQ`, `Both`, or `None`, measured by `sync.changed_since_baseline` against the timestamp pair saved when the item was last exported or synchronized. A pair whose two timestamps match is `None` whatever the saved pair says: only a copy of one side over the other leaves both with the same stamp, and an import records no baseline. `No baseline yet` where no pair has been saved, in which case the row falls back to the raw timestamp comparison. |
 | **This Run** | What the ticked run would do to the item, in the direction being reviewed — see below. |
 | **Details** | The session's own sentence for the row, or the reason an untickable item cannot move. |
 
