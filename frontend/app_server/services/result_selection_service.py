@@ -780,7 +780,7 @@ def _dependency_values(
     rows = frame.to_numpy().tolist()
     if rollup:
         try:
-            rows = precedent_cache_service.rollup_rows(sidecar, rows, origin_length)
+            rows = precedent_cache_service.rollup_rows(project_name, sidecar, rows, origin_length)
         except ValueError as exc:
             raise RuntimeError(
                 f"Unable to roll '{dataset_name}' up to {origin_length} months: {exc}"

@@ -1041,11 +1041,12 @@ def _ym_to_month_index(value: Any) -> int | None:
     return year * 12 + (month - 1)
 
 
-def _empty_dataset_geometry_from_general_settings(
-    project_name: str,
-    origin_period_length: int,
-    development_period_length: int,
-) -> tuple[int, int, np.ndarray | None]:
+def _general_settings_month_bounds(project_name: str) -> tuple[int, int, int]:
+    """The Origin Start, Origin End and Development End months of a project.
+
+    Each is a month index (``year * 12 + month - 1``), read from the project's
+    General Settings; every triangle shape in the project is built from them.
+    """
     try:
         path = config.get_general_settings_path(project_name)
     except ValueError as err:
@@ -1090,7 +1091,26 @@ def _empty_dataset_geometry_from_general_settings(
         raise HTTPException(422, "Cannot create dataset: Origin End Date must not be before Origin Start Date.")
     if development_end_month < origin_start_month:
         raise HTTPException(422, "Cannot create dataset: Development End Date must not be before Origin Start Date.")
+    return origin_start_month, origin_end_month, development_end_month
 
+
+def valuation_months(project_name: str) -> int:
+    """Months from the project's Origin Start Date through its Development End Date.
+
+    The count a roll-up of a stored triangle is anchored on: the newest cell
+    of every row is valued on the Development End Date, so a coarser view
+    counts its development periods back from there.
+    """
+    origin_start_month, _, development_end_month = _general_settings_month_bounds(project_name)
+    return development_end_month - origin_start_month + 1
+
+
+def _empty_dataset_geometry_from_general_settings(
+    project_name: str,
+    origin_period_length: int,
+    development_period_length: int,
+) -> tuple[int, int, np.ndarray | None]:
+    origin_start_month, origin_end_month, development_end_month = _general_settings_month_bounds(project_name)
     origin_period = max(1, int(origin_period_length or 1))
     development_period = max(1, int(development_period_length or 1))
     origin_count = ((origin_end_month - origin_start_month) // origin_period) + 1
@@ -1390,6 +1410,7 @@ def _rolled_up_dataset(ds_id: str) -> Tuple[pd.DataFrame, float] | None:
         source_development_length=int(recipe["source_development_length"]),
         target_origin_length=int(recipe["target_origin_length"]),
         target_development_length=int(recipe["target_development_length"]),
+        valuation_months=int(recipe["valuation_months"]),
         cumulative=bool(recipe.get("cumulative", True)),
         calendar=bool(recipe.get("calendar", False)),
     )

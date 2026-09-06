@@ -1,0 +1,10 @@
+{
+  "type": "fix",
+  "scope": "dataset",
+  "audience": "user",
+  "summary": "A coarser view of a triangle stored at a finer period is now valued on the project's Development End Date, so it keeps its latest diagonal and its figures.",
+  "details": [
+    "A triangle imported from ResQ at a stored length of 1 month and shown at 12 months read the 12-, 24-, 36-month columns of the stored grid, which hold nothing in a project valued at August, and dropped the last column, so the view showed zeros and lost its latest diagonal.",
+    "The view now counts development periods back from the Development End Date the way ResQ does, reading 8, 20, 32, ... 116 months of age for an August valuation, and any development length you pick on the Data tab reshapes the stored figures the same way."
+  ]
+}

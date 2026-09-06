@@ -912,6 +912,11 @@ def _derive_triangle_cache(candidate: Dict[str, Any], pairs: list, target_path: 
     target_dev = _pair_int_value(pairs, "DevelopmentLength", 12)
     origin_factor = target_origin // source_origin
     dev_factor = target_dev // source_dev
+    from app_server.services import dataset_service
+
+    # The view is valued on the project's Development End Date, like every
+    # triangle created at the requested shape would be.
+    valuation = dataset_service.valuation_months(_pair_value(pairs, "ProjectName"))
     df = pd.read_csv(source_path, header=None, dtype="float64", keep_default_na=True)
     values = rollup_triangle(
         df.to_numpy().tolist(),
@@ -919,6 +924,7 @@ def _derive_triangle_cache(candidate: Dict[str, Any], pairs: list, target_path: 
         source_development_length=source_dev,
         target_origin_length=target_origin,
         target_development_length=target_dev,
+        valuation_months=valuation,
         cumulative=_pair_bool_value(pairs, "Cumulative", True),
         calendar=_pair_bool_value(pairs, "Calendar", False),
     )
@@ -940,8 +946,6 @@ def _derive_triangle_cache(candidate: Dict[str, Any], pairs: list, target_path: 
         # produce again, so a coarser view of it is never written beside it:
         # the grid is handed the roll-up recipe and builds the view from the
         # stored CSV on every read.
-        from app_server.services import dataset_service
-
         dataset_service.register_rollup_handle(
             _arcrho_dataset_id(target_path, pairs),
             {
@@ -950,6 +954,7 @@ def _derive_triangle_cache(candidate: Dict[str, Any], pairs: list, target_path: 
                 "source_development_length": source_dev,
                 "target_origin_length": target_origin,
                 "target_development_length": target_dev,
+                "valuation_months": valuation,
                 "cumulative": _pair_bool_value(pairs, "Cumulative", True),
                 "calendar": _pair_bool_value(pairs, "Calendar", False),
             },

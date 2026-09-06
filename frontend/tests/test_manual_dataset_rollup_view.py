@@ -6,6 +6,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 FRONTEND_ROOT = Path(__file__).resolve().parents[1]
 REPO_ROOT = FRONTEND_ROOT.parent
@@ -30,6 +31,18 @@ class ManualDatasetRollupViewTests(unittest.TestCase):
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.sidecar_dir = self.cache_dir.parent / config.DATASET_SIDECAR_DIR
         self.sidecar_dir.mkdir(parents=True, exist_ok=True)
+        # Twenty-four monthly origins valued at the end of the second year, so
+        # the yearly view is valued at 12 and 24 months of age.
+        settings_path = root / "general_settings.json"
+        settings_path.write_text(
+            '{"origin_start_date":"202301","origin_end_date":"202412","development_end_date":"202412"}',
+            encoding="utf-8",
+        )
+        self._settings_patch = patch.object(
+            config, "get_general_settings_path", return_value=str(settings_path)
+        )
+        self._settings_patch.start()
+        self.addCleanup(self._settings_patch.stop)
 
         self.stored_csv = self.cache_dir / f"{self.dataset_name}@1@1@cum@dev.csv"
         self.view_csv = self.cache_dir / f"{self.dataset_name}@12@12@cum@dev.csv"

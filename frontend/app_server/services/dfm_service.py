@@ -345,7 +345,7 @@ def _load_source_snapshot(
     if needs_rollup:
         try:
             raw_values = precedent_cache_service.rollup_rows(
-                sidecar, raw_values, rollup_target_origin, rollup_target_development
+                project_name, sidecar, raw_values, rollup_target_origin, rollup_target_development
             )
         except ValueError as exc:
             raise HTTPException(

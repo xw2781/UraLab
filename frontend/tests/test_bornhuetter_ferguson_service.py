@@ -51,7 +51,17 @@ class BornhuetterFergusonServiceTests(unittest.TestCase):
         self.sidecars = root / "sidecars"
         for folder in (self.methods, self.datasets, self.sidecars):
             folder.mkdir()
+        settings = root / "general_settings.json"
+        settings.write_text(
+            '{"origin_start_date":"202301","origin_end_date":"202412","development_end_date":"202412"}',
+            encoding="utf-8",
+        )
         self.patchers = [
+            mock.patch.object(
+                bornhuetter_ferguson_service.config,
+                "get_general_settings_path",
+                return_value=str(settings),
+            ),
             mock.patch.object(
                 bornhuetter_ferguson_service.config,
                 "get_project_method_data_dir",

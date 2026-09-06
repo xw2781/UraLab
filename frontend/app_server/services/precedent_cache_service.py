@@ -106,15 +106,24 @@ def rollup_reason(
 
 
 def rollup_rows(
+    project_name: str,
     sidecar: Mapping[str, Any],
     rows: Sequence[Sequence[Any]],
     origin_length: Any,
     development_length: Any = None,
 ) -> List[List[float | None]]:
-    """Aggregate a hand-entered dataset's own rows to the coarser lengths."""
+    """Aggregate a hand-entered dataset's own rows to the coarser lengths.
+
+    The view is valued on the project's Development End Date, like every
+    dataset of the project is.
+    """
+
+    from app_server.services import dataset_service
 
     return triangle_rollup.rollup_triangle(
-        rows, **_rollup_arguments(sidecar, origin_length, development_length)
+        rows,
+        valuation_months=dataset_service.valuation_months(project_name),
+        **_rollup_arguments(sidecar, origin_length, development_length),
     )
 
 

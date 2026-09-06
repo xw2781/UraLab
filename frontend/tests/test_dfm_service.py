@@ -40,9 +40,17 @@ class DfmServiceTests(unittest.TestCase):
         self.sidecars = root / "sidecars"
         for folder in (self.methods, self.datasets, self.sidecars):
             folder.mkdir()
+        # Two years of monthly origins valued at the end of the second year,
+        # which is the shape the monthly sources below are written at.
+        settings = root / "general_settings.json"
+        settings.write_text(
+            '{"origin_start_date":"202301","origin_end_date":"202412","development_end_date":"202412"}',
+            encoding="utf-8",
+        )
         self.patchers = [
             mock.patch.object(dfm_service.config, "get_project_method_data_dir", return_value=str(self.methods)),
             mock.patch.object(dfm_service.config, "get_project_dataset_cache_dir", return_value=str(self.datasets)),
+            mock.patch.object(dfm_service.config, "get_general_settings_path", return_value=str(settings)),
             mock.patch.object(
                 dataset_sidecar_status_service,
                 "sidecar_path",
@@ -806,9 +814,9 @@ class DfmServiceTests(unittest.TestCase):
         self.write_json(source_path, source)
 
         # Read as the displayed twelve months this two-row CSV would be taken
-        # as it stands; read as the stored three it is a quarterly triangle
-        # with too few rows to make even one whole year.
-        with self.assertRaisesRegex(HTTPException, r"could not be rolled up to the method's period"):
+        # as it stands; read as the stored three it is two quarters, which
+        # make one partly filled year, not the two the method needs.
+        with self.assertRaisesRegex(HTTPException, r"has 1 rows; expected 2"):
             dfm_service._source_snapshots(
                 "Project",
                 "Class",

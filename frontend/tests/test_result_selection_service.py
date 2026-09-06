@@ -35,8 +35,14 @@ class ResultSelectionServiceTests(unittest.TestCase):
         self.sidecars = self.root / "dataset_sidercars"
         for path in (self.methods, self.datasets, self.sidecars):
             path.mkdir(parents=True)
+        settings = self.root / "general_settings.json"
+        settings.write_text(
+            '{"origin_start_date":"202301","origin_end_date":"202412","development_end_date":"202412"}',
+            encoding="utf-8",
+        )
         self.patchers = [
             IsolatedPropagationWorkspace(),
+            mock.patch.object(config, "get_general_settings_path", return_value=str(settings)),
             mock.patch.object(config, "get_project_method_data_dir", return_value=str(self.methods)),
             mock.patch.object(config, "get_project_dataset_cache_dir", return_value=str(self.datasets)),
             mock.patch.object(config, "get_project_dataset_sidecar_dir", return_value=str(self.sidecars)),

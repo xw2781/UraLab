@@ -426,7 +426,7 @@ def _read_target_snapshot(
     raw_values = frame.values.tolist()
     if needs_rollup:
         try:
-            raw_values = precedent_cache_service.rollup_rows(sidecar, raw_values, origin_length)
+            raw_values = precedent_cache_service.rollup_rows(project_name, sidecar, raw_values, origin_length)
         except ValueError as exc:
             raise HTTPException(
                 422,

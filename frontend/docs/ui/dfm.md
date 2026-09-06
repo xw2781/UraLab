@@ -9,7 +9,7 @@ High Contrast keeps Light colors, black spreadsheet text, and red excluded ratio
 
 ## Entry Points
 <!-- AUTO-GEN:BEGIN frontend.dfm.entry_points -->
-- `ui/method_pages/dfm/dfm.html`: external scripts `/ui/shared/services/color_theme.js?v=20260811a`, `/ui/shared/tabbed_page/initial_tab_paint.js?v=20260824d`; inline imports `/ui/method_pages/dfm/dfm_data_tab_adapter.js?v=20260830b`, `/ui/method_pages/dfm/dfm_main.js?v=20260903a`.
+- `ui/method_pages/dfm/dfm.html`: external scripts `/ui/shared/services/color_theme.js?v=20260811a`, `/ui/shared/tabbed_page/initial_tab_paint.js?v=20260824d`; inline imports `/ui/method_pages/dfm/dfm_data_tab_adapter.js?v=20260906a`, `/ui/method_pages/dfm/dfm_main.js?v=20260906a`.
 
 Detected `fetch(...)` targets in key JS files:
 - `/arcrho/tri`
