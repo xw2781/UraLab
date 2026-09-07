@@ -192,9 +192,9 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 13px;
+  font-size: 12px;
   line-height: var(--topbar-control-height);
-  color: var(--muted);
+  color: var(--ar-details-label-color, #000000);
   white-space: nowrap;
 }
 
@@ -216,9 +216,9 @@ body {
 }
 
 .topbar-label .lbl {
-  font-size: 13px;
+  font-size: 12px;
   line-height: var(--topbar-control-height);
-  color: var(--muted);
+  color: var(--ar-details-label-color, #000000);
   text-align: right;
 }
 
@@ -234,7 +234,7 @@ body {
   border: 1px solid #cfcfcf;
   border-radius: var(--tabbed-page-control-radius, 4px);
   background: #fff;
-  font-size: 13px;
+  font-size: 12px;
   font-family: var(--app-font);
 }
 
@@ -258,9 +258,9 @@ body {
    as ResQ's own Edit Triangle dialog puts them, so the two are read together
    rather than one of them having to be remembered. */
 #datasetTopBar .lenStoredLabel {
-  font-size: 13px;
+  font-size: 12px;
   line-height: var(--topbar-control-height);
-  color: var(--muted);
+  color: var(--ar-details-label-color, #000000);
   white-space: nowrap;
 }
 

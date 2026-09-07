@@ -131,7 +131,7 @@
   border-spacing: 0;
   table-layout: fixed;
   color: #1f2937;
-  font-size: var(--ar-spreadsheet-font-size);
+  font-size: 14px;
   user-select: none;
   -webkit-user-select: none;
 }
