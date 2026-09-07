@@ -1,0 +1,10 @@
+{
+  "type": "fix",
+  "scope": "dataset",
+  "audience": "user",
+  "summary": "A triangle's column ages now come from Project Settings at every view, so a project valued in August reads 8m, 20m, 32m instead of the list its sidecar happened to carry.",
+  "details": [
+    "The ages count back from the Development End Date and are cut to the columns the dataset has.",
+    "The sidecar's own list answers only when the project headers cannot be read at all."
+  ]
+}

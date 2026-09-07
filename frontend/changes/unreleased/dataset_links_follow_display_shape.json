@@ -1,0 +1,11 @@
+{
+  "type": "fix",
+  "scope": "dataset",
+  "audience": "user",
+  "summary": "A dataset's links now belong to the display it was saved at, so a triangle stored monthly under a yearly view keeps its yearly links live.",
+  "details": [
+    "A link names a cell of the grid that was on screen when it was written, not a cell of the file, so values can be typed and Excel ranges pasted at that view over a file stored finer.",
+    "Links are held still only while the length controls sit off the pair the dataset was last loaded or saved at: no contours, no link editing, no refresh, and the save is refused.",
+    "The formula bar and the save refusal share one sentence naming the lengths to put back."
+  ]
+}

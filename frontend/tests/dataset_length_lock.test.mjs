@@ -607,39 +607,55 @@ test("only a coarser origin view is read-only, and it names that axis", () => {
   );
 });
 
-test("a view off the stored shape holds the links still and says which length to put back", () => {
-  // A saved link names a cell of the file's own triangle, so nothing that
-  // speaks in grid coordinates may run against a coarser view: no cell is
-  // painted, named, released, checked, or refreshed there.
+test("a view off the lengths the links were read at holds them still and says which length to put back", () => {
+  // A saved link names a cell of the grid its dataset was displayed at when the
+  // sidecar was written, not a cell of the file underneath, so the period the
+  // file is stored at decides nothing here: a triangle kept monthly under a
+  // yearly display carries yearly links and they stay live at that display.
   assert.match(
     persistenceControllerSource,
-    /function datasetDisplayIsAtStoredShape\(\) \{\s*return !datasetOriginDisplayIsCoarserThanStored\(\)\s*&& !datasetDevelopmentDisplayIsCoarserThanStored\(\);/u,
+    /function datasetLinkedDisplayLengths\(\) \{\s*const settings = lastSavedDatasetSettings;/u,
+  );
+  assert.match(
+    persistenceControllerSource,
+    /function datasetDisplayIsAtLinkedShape\(\) \{\s*if \(storedLengthIsPending\(\)\) return true;\s*const linked = datasetLinkedDisplayLengths\(\);/u,
   );
   // Both axes count, not only the one that locks the grid.
-  assert.match(persistenceControllerSource, /\|\| !datasetDisplayIsAtStoredShape\(\)/u);
+  assert.match(persistenceControllerSource, /if \(current\.origin_length !== linked\.origin_length\) return false;/u);
+  assert.match(
+    persistenceControllerSource,
+    /return !linked\.development_length \|\| current\.development_length === linked\.development_length;/u,
+  );
+  assert.match(persistenceControllerSource, /\|\| !datasetDisplayIsAtLinkedShape\(\)/u);
   // The opening check would otherwise report every stored link as broken. The
   // shape is read after the length controls settle, not when the check was
   // scheduled, and the key is recorded only once the check really runs, so the
-  // check still fires the first time the window comes back to the stored shape.
+  // check still fires the first time the window comes back to those lengths.
   assert.match(
     persistenceControllerSource,
-    /if \(!datasetDisplayIsAtStoredShape\(\)\) return;\s*datasetExcelLinkCheckedKeys\.add\(contextKey\);/u,
+    /if \(!datasetDisplayIsAtLinkedShape\(\)\) return;\s*datasetExcelLinkCheckedKeys\.add\(contextKey\);/u,
   );
-  assert.match(persistenceControllerSource, /isAtStoredShape: datasetDisplayIsAtStoredShape,/u);
+  assert.match(persistenceControllerSource, /isAtLinkedShape: datasetDisplayIsAtLinkedShape,/u);
   // In its place, every cell of a linked dataset carries one sentence naming
   // the lengths to set back, worded the way the controls beside it are.
   assert.match(
     persistenceControllerSource,
-    /This dataset's cells are linked\. Set \$\{lengths\.join\(" and "\)\} to view or edit the formula\./u,
+    /This dataset's cells are linked\. Set \$\{lengths\.join\(" and "\)\} to \$\{allows\}\./u,
   );
-  assert.match(persistenceControllerSource, /lengths\.push\(`Origin Length to \$\{stored\.origin_length\}`\)/u);
-  assert.match(persistenceControllerSource, /lengths\.push\(`Development Length to \$\{stored\.development_length\}`\)/u);
+  assert.match(persistenceControllerSource, /lengths\.push\(`Origin Length to \$\{linked\.origin_length\}`\)/u);
+  assert.match(persistenceControllerSource, /lengths\.push\(`Development Length to \$\{linked\.development_length\}`\)/u);
   assert.match(
     persistenceControllerSource,
-    /This dataset's cells are linked\. Set the length to \$\{stored\.origin_length\} to view or edit the formula\./u,
+    /This dataset's cells are linked\. Set the length to \$\{linked\.origin_length\} to \$\{allows\}\./u,
+  );
+  // The same sentence refuses a save made at those other lengths, which would
+  // otherwise record them as the grid every saved link is filed against.
+  assert.match(
+    persistenceControllerSource,
+    /const offLinkedShapeHint = datasetOffLinkedShapeLinkHint\("save this dataset"\);\s*if \(offLinkedShapeHint && linkControllerNames\.some\(\(name\) => runtime\[name\]\.hasLinks\(\)\)\) \{/u,
   );
   // The sentence reaches the grid as a formula-bar notice, never as a formula.
-  assert.match(dataTabControllerSource, /const note = offStoredShapeLinkNote\(\);/u);
+  assert.match(dataTabControllerSource, /const note = offLinkedShapeLinkNote\(\);/u);
   assert.match(dataTabControllerSource, /return \{ note, anchorDisplayRow: displayRow, anchorDisplayColumn: displayColumn \};/u);
   assert.match(gridInteractionsSource, /if \(info\?\.note\) \{\s*formulaHover\.attach\(cell, info, \{ key: `note:\$\{displayR\},\$\{displayC\}` \}\);/u);
 });

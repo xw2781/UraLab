@@ -939,9 +939,21 @@ def _retarget_dataset(
     refreshed = changed = failed = 0
     errors: List[str] = []
     values: List[List[Any]] | None = None
+    display_lengths: Tuple[int, int] | None = None
     try:
-        model = dataset_service.load_cached_dataset_values(project, reserving, name)
+        # A link names a cell of the grid its dataset is displayed at, which is
+        # not the file's own grid when the file is stored finer, so the values
+        # the link cells index are read at that display and written back the
+        # same way -- the save puts them into the store as any save from that
+        # view does.
+        model = dataset_service.load_cached_dataset_values(
+            project, reserving, name, at_display_shape=True
+        )
         values = [list(row) for row in model.get("values") or []]
+        display_lengths = (
+            int(model.get("origin_length") or 0),
+            int(model.get("development_length") or 0),
+        )
     except HTTPException as err:
         failed = sum(
             len(link.get("target_cells") or [])
@@ -958,13 +970,17 @@ def _retarget_dataset(
             links, values, new_key, read_map, new_book_path
         )
 
-    # Stored, not displayed: this save rewrites the dataset's own CSV from the
-    # refreshed workbook values, so it writes it back at the shape those
-    # values are held at.
+    # The shape the values above were read at: the dataset's own display, which
+    # is the sidecar's display pair, and the file's own shape whenever the two
+    # are the same. The save carries them into the store from there.
     stored_origin, stored_development = stored_lengths(payload)
-    origin_length = int(stored_origin or (len(values) if values else 0) or 1)
+    origin_length, development_length = display_lengths or (0, 0)
+    origin_length = int(origin_length or stored_origin or (len(values) if values else 0) or 1)
     development_length = int(
-        stored_development or max((len(row) for row in values or []), default=0) or 1
+        development_length
+        or stored_development
+        or max((len(row) for row in values or []), default=0)
+        or 1
     )
     dataset_service.save_dataset_sidecar(
         project,

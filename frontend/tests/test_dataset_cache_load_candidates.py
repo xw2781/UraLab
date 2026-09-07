@@ -165,6 +165,7 @@ class DatasetCacheLoadCandidateTests(unittest.TestCase):
             12,
             2,
             calendar=False,
+            fallback_labels=[],
         )
 
     def test_label_and_formula_hydration_runs_concurrently(self) -> None:
@@ -279,6 +280,27 @@ class DatasetCacheLoadCandidateTests(unittest.TestCase):
         self.assertFalse(legacy_path.exists())
 
 
+def _project_development_headers(
+    _ds_id: str,
+    _path: str,
+    _project_name: str,
+    period_length: int,
+    *,
+    period_type: int = 0,
+    transposed: bool = False,
+    calendar: bool = False,
+) -> list:
+    """The Engine's own development ages for this project, at the period asked for.
+
+    Origins run 2023-2024 and the valuation date is the end of 2024, so a
+    yearly view is aged 12m and 24m and the monthly file is aged 1m upward.
+    The list runs one period past the view's last column, as the Engine's does.
+    """
+
+    step = max(1, int(period_length))
+    return [str(step * (index + 1)) for index in range(36 // step)]
+
+
 class DatasetCacheLoadDisplayShapeTests(unittest.TestCase):
     """A hand-entered dataset opens at the shape its sidecar shows it at.
 
@@ -325,8 +347,13 @@ class DatasetCacheLoadDisplayShapeTests(unittest.TestCase):
             patch.object(dataset_service, "_read_dataset_sidecar", return_value=self.sidecar),
             # The project's headers run one period past the valuation date the
             # view stops at, as the Engine's do; the view takes the ones it has
-            # columns for.
-            patch.object(dataset_service, "_load_project_header_labels", return_value=["12", "24", "36"]),
+            # columns for. They answer for the period each read asks about, so
+            # the yearly view and the monthly file each get their own ages.
+            patch.object(
+                dataset_service,
+                "_load_project_header_labels",
+                side_effect=_project_development_headers,
+            ),
         ]
         for item in self.patches:
             item.start()
@@ -401,6 +428,28 @@ class DatasetCacheLoadDisplayShapeTests(unittest.TestCase):
         )
         self.assertEqual(result["path"], str(csv_path))
         self.assertEqual(config.DATASET_ROLLUPS, {})
+
+    def test_the_project_ages_beat_a_label_list_the_sidecar_still_carries(self) -> None:
+        # As many labels as the view has columns, so a count check would take
+        # them as they stand -- but they are a December project's ages, and
+        # nothing rewrites the list a dataset was created with.
+        self.sidecar["development_labels"] = ["36", "72"]
+
+        result = self._load(at_display_shape=True)
+
+        self.assertEqual(result["dev_labels"], ["12", "24"])
+
+    def test_the_sidecar_labels_answer_only_when_the_project_headers_cannot(self) -> None:
+        self.sidecar["development_labels"] = ["36", "72"]
+
+        with patch.object(
+            dataset_service,
+            "_load_project_header_labels",
+            side_effect=HTTPException(503, "ArcRho project headers are unavailable."),
+        ):
+            result = self._load(at_display_shape=True)
+
+        self.assertEqual(result["dev_labels"], ["36", "72"])
 
 
 if __name__ == "__main__":

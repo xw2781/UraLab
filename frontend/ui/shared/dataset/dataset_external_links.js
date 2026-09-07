@@ -1,5 +1,6 @@
 import {
   readExcelCellsBatch,
+  readExcelFileMtimesBatch,
   validateExcelLinksBatch,
 } from "/ui/shared/integrations/excel_api.js?v=20260819a";
 import {
@@ -388,9 +389,10 @@ export function createDatasetExternalLinksController({
   state,
   readCellsBatch = readExcelCellsBatch,
   validateLinksBatch = validateExcelLinksBatch,
+  readFileMtimesBatch = readExcelFileMtimesBatch,
   isReadOnly = () => false,
   isTransposed = () => false,
-  isAtStoredShape = () => true,
+  isAtLinkedShape = () => true,
   onInventoryChanged = () => {},
   onTargetsClaimed = () => {},
 } = {}) {
@@ -545,12 +547,12 @@ export function createDatasetExternalLinksController({
     return removed;
   }
 
-  // A saved link names a cell of the file's own triangle. While the window is
-  // showing that triangle at a coarser period, every cell on screen stands for
-  // several stored ones, so there is no square to paint, name, or release: the
+  // A saved link names a cell of the grid its dataset was displayed at. While
+  // the window is showing it at other lengths, every cell on screen stands for
+  // other cells entirely, so there is no square to paint, name, or release: the
   // whole inventory stands still and comes back when the lengths do.
   function hardCodeTargetCells(targetCells) {
-    if (!isAtStoredShape()) return 0;
+    if (!isAtLinkedShape()) return 0;
     const cells = Array.isArray(targetCells) ? targetCells : [];
     const indexes = linksForTargetCells(cells);
     const overlapsPendingRequest = cells.some((target) => pendingTargetKeys.has(targetCellKey(target)));
@@ -558,11 +560,11 @@ export function createDatasetExternalLinksController({
     return removeLinkIndexes(indexes);
   }
 
-  // The Value and Destination columns are read off the grid on screen. A
-  // coarser view is not the grid the link points into, so they are left blank
-  // rather than quoting a number and a period the link never named.
+  // The Value and Destination columns are read off the grid on screen. A view
+  // at other lengths is not the grid the link points into, so they are left
+  // blank rather than quoting a number and a period the link never named.
   function listRecords() {
-    const atStoredShape = !!isAtStoredShape();
+    const atLinkedShape = !!isAtLinkedShape();
     const groups = new Map();
     links.forEach((link, linkIndex) => {
       const description = describeExcelReference(link.reference);
@@ -590,8 +592,8 @@ export function createDatasetExternalLinksController({
         workbookPath: group.workbookPath,
         worksheet: group.worksheet,
         address: group.address,
-        value: atStoredShape ? targetValuePreview(state?.model, targets, group.isRange) : "",
-        destination: (atStoredShape ? describeTargetDestination(state?.model, targets) : "") || "Data",
+        value: atLinkedShape ? targetValuePreview(state?.model, targets, group.isRange) : "",
+        destination: (atLinkedShape ? describeTargetDestination(state?.model, targets) : "") || "Data",
         affectedCellCount: targets.length,
         readOnly: !!isReadOnly(),
       };
@@ -650,6 +652,64 @@ export function createDatasetExternalLinksController({
       unverifiedWorkbookCount: 0,
       ...extra,
     };
+  }
+
+  /**
+   * Reports which linked workbooks have been saved since this dataset's file.
+   *
+   * The cheap half of `validateLinks`: the app server stats each distinct
+   * workbook instead of opening it, so a window that only changed the view it
+   * shows can tell that Excel has nothing new to say without reading a cell.
+   * A workbook that cannot be stated is counted as unverified rather than as
+   * newer, so an unreachable drive never rewrites the figures on screen.
+   */
+  async function findNewerWorkbooks(datasetMtime, options = {}) {
+    const bookPaths = [
+      ...new Map(
+        links
+          .map((link) => String(describeExcelReference(link.reference)?.bookPath || ""))
+          .filter(Boolean)
+          .map((bookPath) => [bookPath.toLowerCase(), bookPath]),
+      ).values(),
+    ];
+    const baseline = Number(datasetMtime);
+    if (!bookPaths.length || !Number.isFinite(baseline)) {
+      return { ok: true, newerWorkbooks: [], unverifiedWorkbookCount: bookPaths.length };
+    }
+    let response = null;
+    try {
+      response = await readFileMtimesBatch(bookPaths, { signal: options.signal });
+    } catch (error) {
+      if (error?.name === "AbortError") {
+        return { ok: false, aborted: true, newerWorkbooks: [], unverifiedWorkbookCount: bookPaths.length };
+      }
+      return {
+        ok: false,
+        error: String(error?.message || error || "Linked workbook timestamps could not be read."),
+        newerWorkbooks: [],
+        unverifiedWorkbookCount: bookPaths.length,
+      };
+    }
+    const results = Array.isArray(response?.results) ? response.results : [];
+    if (!response?.ok || results.length !== bookPaths.length) {
+      return {
+        ok: false,
+        error: String(response?.error || "Linked workbook timestamps could not be read."),
+        newerWorkbooks: [],
+        unverifiedWorkbookCount: bookPaths.length,
+      };
+    }
+    const newerWorkbooks = [];
+    let unverifiedWorkbookCount = 0;
+    results.forEach((result, index) => {
+      const mtime = Number(result?.mtime);
+      if (!result?.ok || !Number.isFinite(mtime)) {
+        unverifiedWorkbookCount += 1;
+      } else if (mtime > baseline + 0.001) {
+        newerWorkbooks.push({ path: String(result.path || bookPaths[index]), mtime });
+      }
+    });
+    return { ok: true, newerWorkbooks, unverifiedWorkbookCount };
   }
 
   /**
@@ -756,7 +816,7 @@ export function createDatasetExternalLinksController({
   }
 
   function getCellLinkInfo(displayRow, displayColumn) {
-    if (!state?.model || !isAtStoredShape()) return null;
+    if (!state?.model || !isAtLinkedShape()) return null;
     const actual = displayToActualCell(displayRow, displayColumn, !!isTransposed());
     const key = targetCellKey(actual);
     const decoration = getTargetDecorationIndex().targets.get(key);
@@ -776,7 +836,7 @@ export function createDatasetExternalLinksController({
   }
 
   function decorateCell(cell, displayRow, displayColumn) {
-    if (!cell || !state?.model || !isAtStoredShape()) return;
+    if (!cell || !state?.model || !isAtLinkedShape()) return;
     const actual = displayToActualCell(displayRow, displayColumn, !!isTransposed());
     const key = targetCellKey(actual);
     const index = getTargetDecorationIndex();
@@ -1011,6 +1071,7 @@ export function createDatasetExternalLinksController({
     clear,
     commitReference,
     decorateCell,
+    findNewerWorkbooks,
     hasLinks,
     hardCodeTargetCells,
     getCellLinkInfo,

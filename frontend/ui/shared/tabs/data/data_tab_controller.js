@@ -64,9 +64,9 @@ import { openDatasetNamePicker } from "/ui/shared/components/pickers/dataset_nam
 import { getDataTabAuditController } from "/ui/shared/tabs/data/data_tab_audit_port.js";
 import { getDataTabCloseConfirm } from "/ui/shared/tabs/data/data_tab_close_port.js";
 import { getDataTabLinksController } from "/ui/shared/tabs/data/data_tab_links_port.js";
-import { createDatasetExternalLinksController } from "/ui/shared/dataset/dataset_external_links.js?v=20260907a";
-import { createDatasetInternalLinksController } from "/ui/shared/dataset/dataset_internal_links.js?v=20260907a";
-import { createDatasetFormulaLinksController } from "/ui/shared/dataset/dataset_formula_links.js?v=20260907a";
+import { createDatasetExternalLinksController } from "/ui/shared/dataset/dataset_external_links.js?v=20260907b";
+import { createDatasetInternalLinksController } from "/ui/shared/dataset/dataset_internal_links.js?v=20260907b";
+import { createDatasetFormulaLinksController } from "/ui/shared/dataset/dataset_formula_links.js?v=20260907b";
 import {
   loadProjectUserPreferences,
   scheduleProjectUserPreferencesSave,
@@ -95,7 +95,7 @@ import { registerDataTabDetailsController } from "/ui/shared/tabs/data/data_tab_
 import { registerDataTabInputsController } from "/ui/shared/tabs/data/data_tab_inputs_controller.js?v=20260906b";
 import { registerDataTabPreferencesController } from "/ui/shared/tabs/data/data_tab_preferences_controller.js?v=20260906c";
 import { registerDataTabRequestController } from "/ui/shared/tabs/data/data_tab_request_controller.js?v=20260907b";
-import { registerDataTabPersistenceController } from "/ui/shared/tabs/data/data_tab_persistence_controller.js?v=20260907b";
+import { registerDataTabPersistenceController } from "/ui/shared/tabs/data/data_tab_persistence_controller.js?v=20260907c";
 
 const LS_DS_KEY = "arcrho_last_ds_id";
 const LS_FORM_KEY = "arcrho_tri_inputs";
@@ -408,12 +408,12 @@ async function openDatasetNameTreeForDataset(targetInput) {
 }
 
 // The sentence a linked cell shows in place of its formula while the window is
-// off the shape the file is stored at, or "" whenever there is nothing to
-// explain — the display is on the stored shape, or this dataset has no links.
-function offStoredShapeLinkNote() {
-  if (runtime.datasetDisplayIsAtStoredShape()) return "";
+// off the lengths its links were read at, or "" whenever there is nothing to
+// explain — the display is on those lengths, or this dataset has no links.
+function offLinkedShapeLinkNote() {
+  if (runtime.datasetDisplayIsAtLinkedShape()) return "";
   const hasLinks = linkControllersHaveLinks();
-  return hasLinks ? runtime.datasetOffStoredShapeLinkHint() : "";
+  return hasLinks ? runtime.datasetOffLinkedShapeLinkHint() : "";
 }
 
 function linkControllersHaveLinks() {
@@ -476,11 +476,11 @@ function wireGridInteractions() {
     },
     // A cell holds at most one link (Excel, ArcRho, or formula), enforced on
     // commit and save, so the first answer wins here. While the window shows
-    // the dataset at a coarser period than the file is stored at, no cell on
+    // the dataset at other lengths than its links were read at, no cell on
     // screen is one a link names, so every cell of a linked dataset answers
     // with the note that says which length to put back instead.
     getExternalLinkCellInfo: (displayRow, displayColumn) => {
-      const note = offStoredShapeLinkNote();
+      const note = offLinkedShapeLinkNote();
       if (note) return { note, anchorDisplayRow: displayRow, anchorDisplayColumn: displayColumn };
       return runtime.datasetFormulaLinks.getCellLinkInfo(displayRow, displayColumn)
         || runtime.datasetInternalLinks.getCellLinkInfo(displayRow, displayColumn)

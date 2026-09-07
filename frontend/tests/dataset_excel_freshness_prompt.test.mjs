@@ -39,6 +39,26 @@ test("DSV validates its Excel links once after linked sidecar data loads", () =>
   assert.match(persistenceSource, /if \(data\.exists\) scheduleDatasetExcelLinkCheck/);
 });
 
+test("a reload reads Excel again only where a workbook has been saved since the dataset", () => {
+  // Changing the view a dataset is shown at reloads it, and the reload used to
+  // read every linked workbook from the top. The dataset's own CSV already
+  // holds those figures, so the workbooks are stated first and read only when
+  // one is newer than that file.
+  assert.match(
+    persistenceSource,
+    /if \(options\?\.forceReload === true\) \{\s*await refreshDatasetExternalLinksIfWorkbooksChanged\(\{ isCurrent \}\);/u,
+  );
+  assert.match(
+    persistenceSource,
+    /const changed = await runtime\.datasetExternalLinks\.findNewerWorkbooks\(state\.fileMtime\);/u,
+  );
+  // An unreachable workbook is not a changed one: the stored figures stand.
+  assert.match(
+    persistenceSource,
+    /if \(!changed\?\.ok \|\| !changed\.newerWorkbooks\?\.length\) \{\s*return \{ linkedCellCount: 0, changedCount: 0, failedCount: 0 \};\s*\}\s*return refreshDatasetExternalLinks\(options\);/u,
+  );
+});
+
 test("a broken reference replaces the newer-workbook prompt", () => {
   // The alert comes first and returns, so the "Linked Excel File Updated"
   // prompt never queues behind a reference that cannot be refreshed anyway.

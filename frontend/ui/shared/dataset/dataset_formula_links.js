@@ -26,7 +26,7 @@ import {
   buildDatasetExternalLinkTargets,
   buildDatasetLinkOutline,
   describeTargetDestination,
-} from "/ui/shared/dataset/dataset_external_links.js?v=20260907a";
+} from "/ui/shared/dataset/dataset_external_links.js?v=20260907b";
 import {
   classifyDatasetFormula,
   evaluateDatasetFormula,
@@ -228,7 +228,7 @@ export function createDatasetFormulaLinksController({
   readCellsBatch = readExcelCellsBatch,
   isReadOnly = () => false,
   isTransposed = () => false,
-  isAtStoredShape = () => true,
+  isAtLinkedShape = () => true,
   onInventoryChanged = () => {},
   onTargetsClaimed = () => {},
 } = {}) {
@@ -346,17 +346,17 @@ export function createDatasetFormulaLinksController({
     return removed;
   }
 
-  // A saved link names a cell of the file's own triangle. While the window is
-  // showing that triangle at a coarser period, every cell on screen stands for
-  // several stored ones, so there is no square to paint, name, or release: the
+  // A saved link names a cell of the grid its dataset was displayed at. While
+  // the window is showing it at other lengths, every cell on screen stands for
+  // other cells entirely, so there is no square to paint, name, or release: the
   // whole inventory stands still and comes back when the lengths do.
   function hardCodeTargetCells(targetCells) {
-    if (!isAtStoredShape()) return 0;
+    if (!isAtLinkedShape()) return 0;
     return removeLinkIndexes(linksForTargetCells(targetCells));
   }
 
   function getCellLinkInfo(displayRow, displayColumn) {
-    if (!state?.model || !isAtStoredShape()) return null;
+    if (!state?.model || !isAtLinkedShape()) return null;
     const actual = displayToActualCell(displayRow, displayColumn, !!isTransposed());
     const decoration = getTargetDecorationIndex().targets.get(targetCellKey(actual));
     const link = decoration?.link;
@@ -374,7 +374,7 @@ export function createDatasetFormulaLinksController({
   }
 
   function decorateCell(cell, displayRow, displayColumn) {
-    if (!cell || !state?.model || !isAtStoredShape()) return;
+    if (!cell || !state?.model || !isAtLinkedShape()) return;
     const actual = displayToActualCell(displayRow, displayColumn, !!isTransposed());
     const key = targetCellKey(actual);
     const index = getTargetDecorationIndex();
@@ -394,11 +394,11 @@ export function createDatasetFormulaLinksController({
     }
   }
 
-  // The Value and Destination columns are read off the grid on screen. A
-  // coarser view is not the grid the link points into, so they are left blank
-  // rather than quoting a number and a period the link never named.
+  // The Value and Destination columns are read off the grid on screen. A view
+  // at other lengths is not the grid the link points into, so they are left
+  // blank rather than quoting a number and a period the link never named.
   function listRecords() {
-    const atStoredShape = !!isAtStoredShape();
+    const atLinkedShape = !!isAtLinkedShape();
     return links.flatMap((link) => {
       const targets = link.target_cells;
       const parsed = parseDatasetFormula(link.formula);
@@ -407,8 +407,8 @@ export function createDatasetFormulaLinksController({
         sourceKind: "formula",
         formula: link.formula,
         reference: link.formula,
-        value: atStoredShape ? targetValuePreview(state?.model, targets, targets.length > 1) : "",
-        destination: (atStoredShape ? describeTargetDestination(state?.model, targets) : "") || "Data",
+        value: atLinkedShape ? targetValuePreview(state?.model, targets, targets.length > 1) : "",
+        destination: (atLinkedShape ? describeTargetDestination(state?.model, targets) : "") || "Data",
         affectedCellCount: targets.length,
         readOnly: !!isReadOnly(),
       };

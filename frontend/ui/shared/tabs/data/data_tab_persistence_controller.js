@@ -80,8 +80,8 @@ export function registerDataTabPersistenceController(runtime) {
     || isDfmDataTabHost()
     || !currentDatasetIsManualTriangleOrVector()
     // A link entered or broken here would be filed against the cells of a
-    // coarser view, which are not the cells the file holds.
-    || !datasetDisplayIsAtStoredShape()
+    // grid the saved links were never written against.
+    || !datasetDisplayIsAtLinkedShape()
   );
   const linksControllerIsTransposed = () => document.getElementById("transposedChk")?.checked === true;
   const notifyLinksInventoryChanged = () => {
@@ -105,7 +105,7 @@ export function registerDataTabPersistenceController(runtime) {
     state,
     isReadOnly: linksControllerIsReadOnly,
     isTransposed: linksControllerIsTransposed,
-    isAtStoredShape: datasetDisplayIsAtStoredShape,
+    isAtLinkedShape: datasetDisplayIsAtLinkedShape,
     onInventoryChanged: notifyLinksInventoryChanged,
     onTargetsClaimed: releaseClaimedCells("datasetExternalLinks"),
   });
@@ -114,7 +114,7 @@ export function registerDataTabPersistenceController(runtime) {
     resolveReferences,
     isReadOnly: linksControllerIsReadOnly,
     isTransposed: linksControllerIsTransposed,
-    isAtStoredShape: datasetDisplayIsAtStoredShape,
+    isAtLinkedShape: datasetDisplayIsAtLinkedShape,
     onInventoryChanged: notifyLinksInventoryChanged,
     onTargetsClaimed: releaseClaimedCells("datasetInternalLinks"),
   });
@@ -123,7 +123,7 @@ export function registerDataTabPersistenceController(runtime) {
     resolveReferences,
     isReadOnly: linksControllerIsReadOnly,
     isTransposed: linksControllerIsTransposed,
-    isAtStoredShape: datasetDisplayIsAtStoredShape,
+    isAtLinkedShape: datasetDisplayIsAtLinkedShape,
     onInventoryChanged: notifyLinksInventoryChanged,
     onTargetsClaimed: releaseClaimedCells("datasetFormulaLinks"),
   });
@@ -423,31 +423,58 @@ export function registerDataTabPersistenceController(runtime) {
     return stored.development_length > 0 && current.development_length > stored.development_length;
   }
 
-  // The display sits on the shape the file is held at when neither axis has
-  // been coarsened. Only there does a saved link name a square the grid has:
-  // every cell of a coarser view stands for several stored ones, so a link
-  // read, checked, painted, or refreshed against it would land on the wrong
-  // cell. The whole link inventory therefore stands still until the lengths
-  // come back.
-  function datasetDisplayIsAtStoredShape() {
-    return !datasetOriginDisplayIsCoarserThanStored()
-      && !datasetDevelopmentDisplayIsCoarserThanStored();
+  // The lengths the open dataset's links were read at: the display its sidecar
+  // was last loaded or saved with. A link names a cell of the grid that was on
+  // screen when it was written, so that grid, not the period the file is held
+  // at, is the one it still points into. A triangle kept monthly under a yearly
+  // display carries yearly links, and they stay live at the yearly view.
+  function datasetLinkedDisplayLengths() {
+    const settings = lastSavedDatasetSettings;
+    const origin = Number(settings?.origin_length);
+    const development = Number(settings?.development_length);
+    if (!Number.isFinite(origin) || origin <= 0) return null;
+    return {
+      origin_length: Math.trunc(origin),
+      development_length: Number.isFinite(development) && development > 0 ? Math.trunc(development) : 0,
+    };
   }
 
-  // What the formula bar says on a linked dataset that is being viewed away
-  // from its stored shape: which length to put back, named the way the control
-  // beside it is labelled.
-  function datasetOffStoredShapeLinkHint() {
-    if (datasetDisplayIsAtStoredShape()) return "";
-    const stored = getStoredLengthPair();
+  // Only at that display does a saved link name a square the grid has: every
+  // cell of a different view stands for other cells entirely, so a link read,
+  // checked, painted, or refreshed there would land on the wrong one. The whole
+  // link inventory therefore stands still until the lengths come back. A
+  // dataset that holds nothing has no link worth protecting and its shape
+  // follows the display, so it is never held still.
+  function datasetDisplayIsAtLinkedShape() {
+    if (storedLengthIsPending()) return true;
+    const linked = datasetLinkedDisplayLengths();
+    if (!linked) return true;
+    const current = getCurrentLengthControlValues();
+    if (current.origin_length !== linked.origin_length) return false;
+    // A vector has one length and no development control to compare.
+    if (currentDatasetIsVector()) return true;
+    return !linked.development_length || current.development_length === linked.development_length;
+  }
+
+  // One sentence for a linked dataset being viewed at other lengths than its
+  // links were read at: which length to put back, named the way the control
+  // beside it is labelled, and what putting it back allows. The formula bar and
+  // the save refusal both say it, so they always name the same lengths.
+  function datasetOffLinkedShapeLinkHint(allows = "view or edit the formula") {
+    if (datasetDisplayIsAtLinkedShape()) return "";
+    const linked = datasetLinkedDisplayLengths();
+    if (!linked) return "";
     if (currentDatasetIsVector()) {
-      return `This dataset's cells are linked. Set the length to ${stored.origin_length} to view or edit the formula.`;
+      return `This dataset's cells are linked. Set the length to ${linked.origin_length} to ${allows}.`;
     }
+    const current = getCurrentLengthControlValues();
     const lengths = [];
-    if (datasetOriginDisplayIsCoarserThanStored()) lengths.push(`Origin Length to ${stored.origin_length}`);
-    if (datasetDevelopmentDisplayIsCoarserThanStored()) lengths.push(`Development Length to ${stored.development_length}`);
+    if (current.origin_length !== linked.origin_length) lengths.push(`Origin Length to ${linked.origin_length}`);
+    if (linked.development_length && current.development_length !== linked.development_length) {
+      lengths.push(`Development Length to ${linked.development_length}`);
+    }
     if (!lengths.length) return "";
-    return `This dataset's cells are linked. Set ${lengths.join(" and ")} to view or edit the formula.`;
+    return `This dataset's cells are linked. Set ${lengths.join(" and ")} to ${allows}.`;
   }
 
   function datasetCoarserViewMessage() {
@@ -711,13 +738,13 @@ export function registerDataTabPersistenceController(runtime) {
     ) return;
     window.setTimeout(async () => {
       if (!isCurrent()) return;
-      // A coarser view holds none of the cells the saved links name, so every
-      // one of them would report itself broken. The shape is read here rather
-      // than when the check was scheduled, because the length controls settle
-      // after the sidecar answers; and nothing is recorded against the key
-      // while it is skipped, so the check still runs the first time the window
-      // comes back to the stored shape.
-      if (!datasetDisplayIsAtStoredShape()) return;
+      // A view at other lengths holds none of the cells the saved links name,
+      // so every one of them would report itself broken. The shape is read here
+      // rather than when the check was scheduled, because the length controls
+      // settle after the sidecar answers; and nothing is recorded against the
+      // key while it is skipped, so the check still runs the first time the
+      // window comes back to the lengths the links were read at.
+      if (!datasetDisplayIsAtLinkedShape()) return;
       datasetExcelLinkCheckedKeys.add(contextKey);
       datasetExcelLinkCheckAbortController?.abort();
       const abortController = new AbortController();
@@ -769,12 +796,39 @@ export function registerDataTabPersistenceController(runtime) {
     }, 0);
   }
 
+  // A reload of the same dataset -- the window came back, or only the view it
+  // is shown at moved -- reads Excel again only when Excel has something new to
+  // say. The dataset's own CSV already holds the figures the last refresh
+  // brought over, so the workbooks are stated first and read only where one has
+  // been saved since that file. A workbook that cannot be stated counts as
+  // unchanged: the stored figures stand rather than being blanked by a drive
+  // that happened to be away.
+  async function refreshDatasetExternalLinksIfWorkbooksChanged(options = {}) {
+    const isCurrent = typeof options?.isCurrent === "function" ? options.isCurrent : () => true;
+    if (
+      isDfmDataTabHost()
+      || !datasetExternalLinksLoaded
+      || !datasetDisplayIsAtLinkedShape()
+      || !state.model
+      || !currentDatasetIsManualTriangleOrVector()
+      || !isCurrent()
+    ) {
+      return { linkedCellCount: 0, changedCount: 0, failedCount: 0 };
+    }
+    const changed = await runtime.datasetExternalLinks.findNewerWorkbooks(state.fileMtime);
+    if (!isCurrent()) return { linkedCellCount: 0, changedCount: 0, failedCount: 0 };
+    if (!changed?.ok || !changed.newerWorkbooks?.length) {
+      return { linkedCellCount: 0, changedCount: 0, failedCount: 0 };
+    }
+    return refreshDatasetExternalLinks(options);
+  }
+
   async function refreshDatasetExternalLinks(options = {}) {
     const isCurrent = typeof options?.isCurrent === "function" ? options.isCurrent : () => true;
     if (
       isDfmDataTabHost()
       || !datasetExternalLinksLoaded
-      || !datasetDisplayIsAtStoredShape()
+      || !datasetDisplayIsAtLinkedShape()
       || !state.model
       || !currentDatasetIsManualTriangleOrVector()
       || !isCurrent()
@@ -833,7 +887,7 @@ export function registerDataTabPersistenceController(runtime) {
     if (
       isDfmDataTabHost()
       || !datasetExternalLinksLoaded
-      || !datasetDisplayIsAtStoredShape()
+      || !datasetDisplayIsAtLinkedShape()
       || !state.model
       || !currentDatasetIsManualTriangleOrVector()
       || !isCurrent()
@@ -993,7 +1047,7 @@ export function registerDataTabPersistenceController(runtime) {
     }
     lastSavedDatasetSettings = settings;
     if (options?.forceReload === true) {
-      await refreshDatasetExternalLinks({ isCurrent });
+      await refreshDatasetExternalLinksIfWorkbooksChanged({ isCurrent });
       if (!isCurrent()) return false;
     }
     if (options?.applyLengths !== false && data.exists) {
@@ -1030,6 +1084,14 @@ export function registerDataTabPersistenceController(runtime) {
     }
     if (await refreshDatasetInstanceNameConflict()) {
       return { ok: false, error: runtime.datasetInstanceNameConflictMessage || "Dataset instance name already exists." };
+    }
+    // A saved link names a cell of the grid its dataset was written at, and
+    // this save would record the lengths on screen as that grid. Writing it
+    // from another view would leave every link pointing at a cell it was never
+    // filed against, so the save asks for the lengths back instead.
+    const offLinkedShapeHint = datasetOffLinkedShapeLinkHint("save this dataset");
+    if (offLinkedShapeHint && linkControllerNames.some((name) => runtime[name].hasLinks())) {
+      return { ok: false, error: offLinkedShapeHint };
     }
     const context = buildDatasetSidecarContextPayload();
     if (!hasDatasetSidecarContext(context)) {
@@ -1524,8 +1586,8 @@ export function registerDataTabPersistenceController(runtime) {
     updateStoredLengthControls,
     datasetOriginDisplayIsCoarserThanStored,
     datasetDevelopmentDisplayIsCoarserThanStored,
-    datasetDisplayIsAtStoredShape,
-    datasetOffStoredShapeLinkHint,
+    datasetDisplayIsAtLinkedShape,
+    datasetOffLinkedShapeLinkHint,
     datasetCoarserViewMessage,
     datasetCoarseDevelopmentNote,
     validateManualDatasetLengthChange,

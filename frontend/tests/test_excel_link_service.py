@@ -327,6 +327,9 @@ class ExcelLinkRetargetTests(ExcelLinkFixture):
             return {"ok": True, "calculated_updates": propagation, "propagation_ok": True}
 
         self.dataset_values = [[100, 150], [200, None]]
+        # The shape the loader says it answered at, which is the dataset's own
+        # display; None stands for a loader that names no shape at all.
+        self.dataset_display_shape: tuple[int, int] | None = None
         self.retarget_patchers = [
             mock.patch.object(
                 excel_link_service.dependent_propagation_service,
@@ -334,7 +337,17 @@ class ExcelLinkRetargetTests(ExcelLinkFixture):
             ),
             mock.patch(
                 "app_server.services.dataset_service.load_cached_dataset_values",
-                side_effect=lambda *_a, **_k: {"values": self.dataset_values},
+                side_effect=lambda *_a, **_k: {
+                    "values": self.dataset_values,
+                    **(
+                        {
+                            "origin_length": self.dataset_display_shape[0],
+                            "development_length": self.dataset_display_shape[1],
+                        }
+                        if self.dataset_display_shape
+                        else {}
+                    ),
+                },
             ),
             mock.patch(
                 "app_server.services.dataset_service.save_dataset_sidecar",
@@ -438,9 +451,9 @@ class ExcelLinkRetargetTests(ExcelLinkFixture):
         self.assertEqual(response["workbooks"][0]["workbook_name"], "Book 2026.xlsx")
         self.assertTrue(response["workbooks"][0]["exists"])
 
-    def test_retarget_writes_the_csv_back_at_its_stored_shape(self) -> None:
-        # The window was left on a coarser view. The refreshed workbook values
-        # are the dataset's own data, so they go back at the shape it holds.
+    def test_retarget_writes_the_csv_back_at_the_shape_it_read(self) -> None:
+        # A sidecar naming a display no roll-up can build is answered at the
+        # file's own shape, and the refreshed values go back there.
         sidecar = self.linked_sidecar()
         sidecar["origin_length"] = 36
         sidecar["development_length"] = 36
@@ -448,6 +461,23 @@ class ExcelLinkRetargetTests(ExcelLinkFixture):
 
         self.assertTrue(self.run_retarget()["ok"])
 
+        kwargs = self.dataset_save.call_args.kwargs
+        self.assertEqual((kwargs["origin_length"], kwargs["development_length"]), (12, 12))
+
+    def test_retarget_reads_a_finer_store_at_the_display_its_links_name(self) -> None:
+        # A link names a cell of the grid its dataset is displayed at, which is
+        # not the file's own grid when the file is stored finer. The values are
+        # read at that display and handed back the same way, and the save puts
+        # them into the store as any save from that view does.
+        sidecar = self.linked_sidecar()
+        sidecar["stored_development_length"] = 1
+        sidecar["csv_file"] = "Manual Paid@12@1@cum@dev.csv"
+        self.write_json(self.sidecars / "Manual Paid.json", sidecar)
+        self.dataset_display_shape = (12, 12)
+
+        self.assertTrue(self.run_retarget()["ok"])
+
+        self.assertIs(self.load_values.call_args.kwargs["at_display_shape"], True)
         kwargs = self.dataset_save.call_args.kwargs
         self.assertEqual((kwargs["origin_length"], kwargs["development_length"]), (12, 12))
 

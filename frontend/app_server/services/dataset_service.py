@@ -269,18 +269,42 @@ def _resolve_development_labels(
     expected_count: int,
     *,
     calendar: bool = False,
+    fallback_labels: List[str] | None = None,
 ) -> List[str]:
-    labels = _load_project_header_labels(
-        ds_id,
-        path,
-        project_name,
-        development_length,
-        period_type=1,
-        transposed=True,
-        calendar=calendar,
-    )
-    if len(labels) == expected_count and labels and all(labels):
-        return labels
+    """The column ages of a triangle view, as the project's own settings state them.
+
+    Project Settings own the development axis the way they own the origin one:
+    the ages count back from the Development End Date, so a project valued in
+    August reads 8m, 20m, 32m and never the 12m, 24m, 36m of a December one. A
+    sidecar's own list is written once, by whatever created the dataset, and
+    nothing updates it afterwards, so it is a fallback for a project whose
+    headers cannot be read and never the answer while they can.
+
+    The project's headers run to the end of its own grid, which can be later
+    than the valuation date a triangle stops at, so they are cut to the columns
+    the dataset has.
+    """
+
+    fallback = [str(item) for item in fallback_labels] if fallback_labels else []
+    usable_fallback = fallback if len(fallback) == expected_count and all(fallback) else []
+    try:
+        labels = _load_project_header_labels(
+            ds_id,
+            path,
+            project_name,
+            development_length,
+            period_type=1,
+            transposed=True,
+            calendar=calendar,
+        )
+    except HTTPException:
+        if usable_fallback:
+            return usable_fallback
+        raise
+    if len(labels) >= expected_count and all(labels[:expected_count]):
+        return labels[:expected_count]
+    if usable_fallback:
+        return usable_fallback
     reason = (
         f"development label count {len(labels)} does not match dataset column count {expected_count}"
         if labels
@@ -2001,12 +2025,10 @@ def load_cached_dataset_values(
         sidecar_origin_length, sidecar_development_length = resolved_origin_length, resolved_development_length
     dataset_id = "arcrhotri_" + hashlib.sha1(csv_path.encode("utf-8")).hexdigest()[:16]
     handle_path = csv_path
-    rolled_up = False
     if at_display_shape:
         view = _display_view_of_stored_values(p, ds, sidecar, csv_path, values)
         if view is not None:
             values, resolved_origin_length, resolved_development_length, dataset_id, handle_path = view
-            rolled_up = True
     origin_labels, _ = _validate_origin_labels(
         sidecar.get("origin_labels"),
         len(values),
@@ -2028,35 +2050,25 @@ def load_cached_dataset_values(
             len(values),
         )
     development_future = None
-    if len(development_labels) != column_count:
-        if is_vector and column_count == 1:
+    if is_vector:
+        if len(development_labels) != column_count and column_count == 1:
             development_labels = ["Ultimate"]
-        elif rolled_up:
-            # A rolled-up view sits on the project's own period grid, so its
-            # columns take the project's headers the way the run path lays
-            # them over the grid: the headers may run past the valuation date
-            # the view stops at, so they are cut to the columns there are.
-            development_future = _CACHED_LOAD_HYDRATION_EXECUTOR.submit(
-                _rolled_up_development_labels,
-                dataset_id,
-                csv_path,
-                p,
-                resolved_development_length,
-                column_count,
-                calendar=bool(sidecar.get("calendar")),
-            )
-        elif str(sidecar.get("source_kind") or "").strip().casefold() == "engine":
-            development_future = _CACHED_LOAD_HYDRATION_EXECUTOR.submit(
-                _resolve_development_labels,
-                dataset_id,
-                csv_path,
-                p,
-                resolved_development_length,
-                column_count,
-                calendar=bool(sidecar.get("calendar")),
-            )
-        else:
-            development_labels = [str(12 * (index + 1)) for index in range(column_count)]
+    else:
+        # A triangle's column ages belong to the project, not to the file: they
+        # count back from its Development End Date, and the view they are asked
+        # for is the one on screen, whether or not the file is stored finer.
+        # The sidecar's own list rides along only as the answer for a project
+        # whose headers cannot be read.
+        development_future = _CACHED_LOAD_HYDRATION_EXECUTOR.submit(
+            _resolve_development_labels,
+            dataset_id,
+            csv_path,
+            p,
+            resolved_development_length,
+            column_count,
+            calendar=bool(sidecar.get("calendar")),
+            fallback_labels=development_labels,
+        )
     formula_future = _CACHED_LOAD_HYDRATION_EXECUTOR.submit(
         _is_app_calculated_dataset_type,
         p,
@@ -2123,29 +2135,6 @@ def load_cached_dataset_values(
         "sidecar_path": sidecar_path,
         "values": values,
     }
-
-
-def _rolled_up_development_labels(
-    ds_id: str,
-    path: str,
-    project_name: str,
-    development_length: int,
-    column_count: int,
-    *,
-    calendar: bool = False,
-) -> List[str]:
-    labels = _load_project_header_labels(
-        ds_id,
-        path,
-        project_name,
-        development_length,
-        period_type=1,
-        transposed=True,
-        calendar=calendar,
-    )
-    if len(labels) >= column_count and all(labels[:column_count]):
-        return labels[:column_count]
-    return [str(development_length * (index + 1)) for index in range(column_count)]
 
 
 def _display_view_of_stored_values(

@@ -8,7 +8,7 @@ const referenceSource = await readFile(
 );
 const referenceUrl = `data:text/javascript;base64,${Buffer.from(referenceSource).toString("base64")}`;
 const excelApiStubUrl = `data:text/javascript;base64,${Buffer.from(
-  "export async function readExcelCellsBatch(){ return { ok: false, results: [] }; } export async function validateExcelLinksBatch(){ return { ok: false, results: [], workbooks: [] }; }",
+  "export async function readExcelCellsBatch(){ return { ok: false, results: [] }; } export async function validateExcelLinksBatch(){ return { ok: false, results: [], workbooks: [] }; } export async function readExcelFileMtimesBatch(){ return { ok: false, results: [] }; }",
 ).toString("base64")}`;
 let controllerSource = await readFile(
   new URL("../ui/shared/dataset/dataset_external_links.js", import.meta.url),
@@ -998,16 +998,16 @@ test("the shared grid stylesheet paints a failed link red in both themes", async
   );
 });
 
-test("a view coarser than the stored shape holds the whole link inventory still", async () => {
-  // A saved link names a cell of the file's own triangle. Shown at a coarser
-  // period, every cell on screen stands for several stored ones, so painting,
-  // naming, or releasing one would land on the wrong cell - and every stored
-  // link would report itself missing. The links themselves are untouched.
+test("a view off the lengths the links were read at holds the whole link inventory still", async () => {
+  // A saved link names a cell of the grid its dataset was displayed at. Shown
+  // at other lengths, every cell on screen stands for other cells entirely, so
+  // painting, naming, or releasing one would land on the wrong cell - and every
+  // stored link would report itself missing. The links themselves are untouched.
   const state = { model: model2x2(), dirty: new Map() };
-  let atStoredShape = true;
+  let atLinkedShape = true;
   const controller = externalLinks.createDatasetExternalLinksController({
     state,
-    isAtStoredShape: () => atStoredShape,
+    isAtLinkedShape: () => atLinkedShape,
     readCellsBatch: async (items) => ({
       ok: true,
       results: items.map(() => ({ ok: true, value: 7 })),
@@ -1025,7 +1025,7 @@ test("a view coarser than the stored shape holds the whole link inventory still"
   const onShape = controller.listRecords()[0];
   assert.equal(onShape.destination, "2024~2025 / 12m~24m");
 
-  atStoredShape = false;
+  atLinkedShape = false;
   assert.equal(controller.getCellLinkInfo(0, 0), null);
   const painted = decoratedCell();
   controller.decorateCell(painted, 0, 0);
@@ -1039,6 +1039,63 @@ test("a view coarser than the stored shape holds the whole link inventory still"
   assert.equal(offShape.destination, "Data");
   assert.equal(offShape.affectedCellCount, 4);
 
-  atStoredShape = true;
+  atLinkedShape = true;
   assert.ok(controller.getCellLinkInfo(0, 0));
+});
+
+test("the workbook probe states each linked workbook once and reports only newer ones", async () => {
+  // The cheap half of validation: no cell is read, one entry per distinct
+  // workbook, and only a workbook saved after the dataset's own file counts.
+  const state = { model: model2x2(), dirty: new Map() };
+  const asked = [];
+  const controller = externalLinks.createDatasetExternalLinksController({
+    state,
+    readCellsBatch: async () => {
+      throw new Error("A freshness probe must not read workbook cells.");
+    },
+    readFileMtimesBatch: async (bookPaths) => {
+      asked.push(bookPaths);
+      return { ok: true, results: bookPaths.map(() => ({ ok: true, path: bookPaths[0], mtime: 200 })) };
+    },
+  });
+  controller.load([
+    { reference: REF, target_cells: [
+      { row: 0, column: 0, source_cell: "A1" },
+      { row: 0, column: 1, source_cell: "B1" },
+      { row: 1, column: 0, source_cell: "A2" },
+      { row: 1, column: 1, source_cell: "B2" },
+    ] },
+  ]);
+
+  const newer = await controller.findNewerWorkbooks(100);
+  assert.equal(asked.length, 1);
+  assert.deepEqual(asked[0], [String.raw`C:\Data\Book.xlsx`]);
+  assert.equal(newer.ok, true);
+  assert.equal(newer.newerWorkbooks.length, 1);
+
+  const unchanged = await controller.findNewerWorkbooks(300);
+  assert.equal(unchanged.ok, true);
+  assert.equal(unchanged.newerWorkbooks.length, 0);
+});
+
+test("a workbook that cannot be stated is unverified, never newer", async () => {
+  const state = { model: model2x2(), dirty: new Map() };
+  const controller = externalLinks.createDatasetExternalLinksController({
+    state,
+    readFileMtimesBatch: async (bookPaths) => ({
+      ok: true,
+      results: bookPaths.map(() => ({ ok: false, path: "", error: "File not found" })),
+    }),
+  });
+  controller.load([{ reference: REF, target_cells: [
+    { row: 0, column: 0, source_cell: "A1" },
+    { row: 0, column: 1, source_cell: "B1" },
+    { row: 1, column: 0, source_cell: "A2" },
+    { row: 1, column: 1, source_cell: "B2" },
+  ] }]);
+
+  const result = await controller.findNewerWorkbooks(100);
+  assert.equal(result.ok, true);
+  assert.equal(result.newerWorkbooks.length, 0);
+  assert.equal(result.unverifiedWorkbookCount, 1);
 });

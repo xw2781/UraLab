@@ -1,0 +1,10 @@
+{
+  "type": "improvement",
+  "scope": "dataset",
+  "audience": "user",
+  "summary": "Reopening a dataset or changing the view it is shown at no longer re-reads every linked workbook; Excel is read only where a workbook was saved after the dataset.",
+  "details": [
+    "Each linked workbook's timestamp is checked first, which is far cheaper than opening it.",
+    "A workbook that cannot be reached counts as unchanged, so an unavailable drive never blanks the figures on screen."
+  ]
+}
