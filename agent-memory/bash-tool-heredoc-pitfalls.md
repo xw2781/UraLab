@@ -5,7 +5,7 @@ metadata:
   node_type: memory
   type: project
   originSessionId: be39cc59-f1e3-4e66-8f1b-060ea472932d
-  modified: 2026-09-07T13:27:17.356Z
+  modified: 2026-09-07T16:06:56.601Z
 ---
 
 On this Client PC the Bash tool's `<<'EOF'` heredocs are **not** treated as literal text even with a quoted delimiter (observed 2026-08-17):
@@ -14,6 +14,8 @@ On this Client PC the Bash tool's `<<'EOF'` heredocs are **not** treated as lite
 - Doubled backslashes are collapsed: a Python line `"Z:\\A\\New.xlsx"` inside the heredoc reaches Python as `"Z:\A\New.xlsx"` and raises `unicodeescape` errors, or silently writes single-backslash text into files.
 
 **Why:** the command string is pre-processed before Git Bash sees it, so heredocs only work for bodies free of backticks and escaped backslashes.
+
+The backslash collapse also silently produces *parseable but broken* JS, so a syntax check can pass while the browser fails. On 2026-09-07 a `cat >> open_path.js <<'EOF'` block landed `` `${folder}\` `` instead of `` `${folder}\\` ``; `node --check` still passed (the stray backtick opened a template that closed further down), and the only symptom was every Dataset Viewer page loading blank with `Uncaught SyntaxError` in the renderer. Catching it needed the [[electron-ui-screenshot-check]] probe with a `console-message` listener pointed at the running app's page URL. This applies even while auto mode asks for Bash-first edits: code with backticks or backslashes still goes through Write/Edit.
 
 **How to apply:** for anything longer than a few plain lines — especially JS/CSS/Markdown edits or scripts with Windows paths — write the script or content with the Write tool into the scratchpad and run it by path (`py -3.10 <scratchpad>/script.py`), or use the Edit tool directly. Related: [[python-test-runner]], [[frontend-node-test-suite]].
 
