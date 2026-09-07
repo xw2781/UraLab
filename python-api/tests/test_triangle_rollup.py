@@ -205,7 +205,7 @@ class TriangleRollupTests(unittest.TestCase):
 
 class ResqProbeGridTests(unittest.TestCase):
     """The grids ResQ itself returned, from the probe in
-    ``docs/plans/manual_input_stored_length_resq_alignment.md`` (rules 2 and 8).
+    ``docs/plans/completed/manual_input_stored_length_resq_alignment.md`` (rules 2 and 8).
 
     ``NJ_Annual_Prod_202605_Fake``: annual origins from 2017-01 valued on
     2026-05-31, so the project is 113 months long and an annual view is valued
@@ -289,7 +289,7 @@ class TriangleScatterTests(unittest.TestCase):
     """Values entered at a coarser development view land in the stored cells.
 
     Pinned to the ResQ probe recorded in
-    ``docs/plans/manual_input_stored_length_resq_alignment.md``: annual origins
+    ``docs/plans/completed/manual_input_stored_length_resq_alignment.md``: annual origins
     from 2017-01 valued on 2026-05-31, so the project is 113 months long and an
     annual view of a monthly store is valued at 5, 17, 29, ... 113 months.
     """

@@ -17,7 +17,6 @@ index is a summary of those lines, not a second source of truth.
 | [hosted_save_http_transport.md](hosted_save_http_transport.md) | Dataset-sidecar and DFM-method pilot implemented; the broader rollout is still proposed. |
 | [hosted_workspace_http_transport.md](hosted_workspace_http_transport.md) | Phase 1 reads and Phase 2 engine calculations implemented; the bounded-server foundation, SSE, and small writes remain. |
 | [local_runtime_log_retention_plan.md](local_runtime_log_retention_plan.md) | Audit complete (2026-08-09); remediation not started. |
-| [manual_input_stored_length_resq_alignment.md](manual_input_stored_length_resq_alignment.md) | ResQ's stored-length and coarse-paste rules established against its API (2026-09-06); broken into 7 session-sized steps, 6 done (2026-09-06); only the deploy is left. |
 
 ## Completed
 
@@ -28,3 +27,4 @@ index is a summary of those lines, not a second source of truth.
 | [completed/hosted_rpc_bridge_transport.md](completed/hosted_rpc_bridge_transport.md) | 2026-08-19 — DFM and Result Selection sync moved off SMB, except the deliberately deferred `apply`. |
 | [completed/persisted_json_contract_v4.md](completed/persisted_json_contract_v4.md) | 2026-08-23 — every stored JSON file moved to one `snake_case` convention with fewer fields and one audit-log policy, converted in place for `NJ_Annual_Prod_202605_Fake` (the other projects are re-imported from ResQ instead) and released as ArcRho 1.3.3; closed 2026-09-06 with the ultra review dropped and the release left unforced, since every user is assumed to run the latest version. |
 | [completed/manual_input_period_rollup.md](completed/manual_input_period_rollup.md) | 2026-09-05 — a hand-entered triangle now records the shape it is really stored at, a coarser view of it is added up along the calendar on every open instead of being cached beside it, and a yearly method can take a monthly or quarterly one as its input. Includes the [backfill run report](completed/manual_input_period_rollup_backfill_report.md) for the 10,997 records already on the server. |
+| [completed/manual_input_stored_length_resq_alignment.md](completed/manual_input_stored_length_resq_alignment.md) | 2026-09-07 — a hand-entered triangle can now be stored finer than it is shown, a coarser development view can be typed, pasted and linked into with each figure written at its column's age and the periods between cleared, and the export writes the triangle to ResQ at ArcRho's stored shape. Records the ResQ stored-length rules established against its COM API. |

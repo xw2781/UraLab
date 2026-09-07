@@ -2,7 +2,7 @@
 
 Creates throwaway triangles and a vector named ``ArcRho probe ...`` of a
 non-unique, non-calculated dataset type in one reserving class, exercises the
-rules recorded in docs/plans/manual_input_stored_length_resq_alignment.md, and
+rules recorded in docs/plans/completed/manual_input_stored_length_resq_alignment.md, and
 deletes everything it created. Nothing that already exists in the class is
 touched. Server PC only (ResQ COM), with a Python that has pywin32::
 

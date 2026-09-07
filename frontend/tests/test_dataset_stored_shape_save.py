@@ -6,7 +6,7 @@ stored shape and its CSV survive a display-only save, a save that carries
 values at any other shape is refused, and only a dataset whose file holds
 nothing is relabelled to the shape asked for.
 
-Step 3 of ``docs/plans/manual_input_stored_length_resq_alignment.md`` relaxes
+Step 3 of ``docs/plans/completed/manual_input_stored_length_resq_alignment.md`` relaxes
 that refusal on the development axis alone: values entered at a coarser
 development view are scattered into the stored cells at their valuation dates.
 """
