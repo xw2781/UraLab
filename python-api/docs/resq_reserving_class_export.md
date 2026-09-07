@@ -26,9 +26,12 @@ every item below is written, each after the items it reads:
   takes values at the period lengths a dataset is shown at, so a triangle is
   emptied (`ClearData`), given the sidecar's `stored_development_length`, shown
   at the sidecar's stored pair for the write, and put back to its display pair
-  before the save; a triangle ResQ stores at a different origin length is
-  skipped as `stored_origin_mismatch`, because that length cannot be changed on
-  an existing triangle. A dataset that is `Calculated` in ResQ is skipped,
+  before the save. When ResQ stores the triangle at a different origin length,
+  the emptied triangle is also saved and read again (`Save`,
+  `UnloadChildren`, re-find) before the shape is restated: `StoredOriginLength`
+  has no setter, the origin store follows `OriginLength` while the triangle
+  holds nothing, and that is the sequence the ResQ window itself asks for.
+  A dataset that is `Calculated` in ResQ is skipped,
   because ResQ recomputes it, even when ArcRho's library treats the type as an
   editable input.
 - **DFM methods** — ratio exclusions (`SetExcludedRatios`), User Entry factors

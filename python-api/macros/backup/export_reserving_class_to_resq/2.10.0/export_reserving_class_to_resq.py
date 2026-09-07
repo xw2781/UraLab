@@ -1,7 +1,7 @@
 # <arcrho-macro>
 # Title: Export Reserving Class to ResQ
-# Version: 2.11.0
-# Release Note: A hand-entered triangle whose figures ResQ keeps by a different origin period is now written instead of skipped: the export empties the ResQ dataset, saves it and reads it back, which lets ResQ move the period the figures are kept by, and then writes them at the period ArcRho keeps them by.
+# Version: 2.10.0
+# Release Note: A hand-entered triangle is now written to ResQ at the shape ArcRho stores it in, so a dataset kept monthly underneath a yearly view arrives with the same figures in the same cells; a triangle ResQ stores by a different origin period is reported as skipped instead of written wrongly.
 # Description: Push the datasets and methods you tick from the reserving class selected in the active Project Instance page into ResQ: input datasets with their Notes, DFM ratio, tail and Curves-tab selections, Result Selection and B&S Case Reserve Adequacy selections and Notes, and a save of every Bornhuetter Ferguson, Cape Cod and B&S Settlement Rate method, in ArcRho's dependency order.
 # Scope: Reserving Class
 # Icon: upload
@@ -397,7 +397,7 @@ class ResQReservingClassExporter:
 
         notes = self._sync_notes(target, sidecar)
         if is_triangle:
-            self._write_triangle_values(target, sidecar, values, name)
+            self._write_triangle_values(target, sidecar, values)
         else:
             self._write_vector_values(target, values)
         self.counts["datasets_written"] += 1
@@ -426,32 +426,7 @@ class ResQReservingClassExporter:
             if length and _safe_length(triangle, member) != length:
                 setattr(triangle, member, length)
 
-    def _empty_and_reopen(self, triangle, name):
-        """Save the emptied *triangle* and read it back from ResQ.
-
-        ResQ has no setter for the stored origin length: it follows the display
-        origin length, and only while the triangle holds nothing. Saving the
-        emptied triangle and reading it again is the sequence the ResQ window
-        itself asks for before those settings can be changed, so the export
-        follows it whenever the stored origin period has to move. Reading the
-        class again invalidates every cached ResQ object, so the name maps go
-        with it; the triangle in hand is kept if ResQ cannot hand back a fresh
-        one.
-        """
-        try:
-            triangle.Save()
-        except Exception:
-            return triangle
-        if not name:
-            return triangle
-        try:
-            self.reserving_class.UnloadChildren()
-        except Exception:
-            return triangle
-        self._lookup_maps = {}
-        return self._find_triangle(name) or triangle
-
-    def _write_triangle_values(self, triangle, sidecar, values, name=""):
+    def _write_triangle_values(self, triangle, sidecar, values):
         if bool(getattr(triangle, "Calculated", False)):
             raise ExportSkipped("calculated_in_resq", "ResQ dataset is calculated; ResQ recomputes its values")
         origin_length = int(sidecar.get("origin_length") or 0)
@@ -459,22 +434,21 @@ class ResQReservingClassExporter:
         stored_origin_length = int(sidecar.get("stored_origin_length") or 0) or origin_length
         stored_development_length = int(sidecar.get("stored_development_length") or 0) or development_length
         resq_stored_origin = _safe_length(triangle, "StoredOriginLength")
-        moving_the_origin_store = bool(
-            stored_origin_length and resq_stored_origin and resq_stored_origin != stored_origin_length
-        )
+        if stored_origin_length and resq_stored_origin and resq_stored_origin != stored_origin_length:
+            raise ExportSkipped(
+                "stored_origin_mismatch",
+                f"ArcRho stores this triangle at origin length {stored_origin_length} and ResQ stores it "
+                f"at {resq_stored_origin}; ResQ cannot change the stored origin length of an existing triangle",
+            )
         # The ArcRho CSV holds the sidecar's stored shape, and ResQ takes values
-        # at the length the triangle is shown at. So empty it (which frees both
-        # stored lengths), give it ArcRho's display shape and stored development
+        # at the length the triangle is shown at. So empty it (which frees the
+        # stored length), give it ArcRho's display shape and stored development
         # length, show it at the stored shape to write by index, then put the
-        # display shape back before saving. Emptying is enough to free the
-        # stored development length; moving the stored origin period goes
-        # through the save-and-reopen the ResQ window asks for.
+        # display shape back before saving.
         try:
             triangle.ClearData()
         except Exception:
             pass
-        if moving_the_origin_store:
-            triangle = self._empty_and_reopen(triangle, name)
         self._show_triangle_at(triangle, origin_length, development_length)
         if stored_development_length and _safe_length(triangle, "StoredDevelopmentLength") != stored_development_length:
             triangle.StoredDevelopmentLength = stored_development_length

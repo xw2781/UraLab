@@ -227,10 +227,64 @@ class _FakeTriangle:
         self._pending = False
         self._holds_data = False
 
+    def reopened(self):
+        """A separate object holding the saved state, as ResQ hands one back
+        after the reserving class has been read again."""
+        fresh = _FakeTriangle(
+            origin_length=self._origin_length,
+            development_length=self._development_length,
+            stored_development_length=self._stored_development_length,
+            holds_data=self._holds_data,
+        )
+        fresh._stored_origin_length = self._stored_origin_length
+        return fresh
+
     def Save(self):
         self.saves += 1
         if self._pending:
             self._holds_data = True
+
+
+class _FakeTriangleCollection:
+    """The subset of a ResQ triangle collection the export's lookups use."""
+
+    def __init__(self, triangles):
+        self._triangles = dict(triangles)
+
+    @property
+    def Count(self):
+        return len(self._triangles)
+
+    def Item(self, key):
+        if isinstance(key, int):
+            return list(self._triangles.values())[key - 1]
+        return self._triangles[key]
+
+
+class _FakeReservingClass:
+    """Enough of a ResQ reserving class for the export's empty-and-reopen step.
+
+    Reading the class again hands back a separate triangle object carrying the
+    saved state, exactly as ResQ does, so a test can tell a reopened triangle
+    from the one the export started with.
+    """
+
+    def __init__(self, triangles):
+        self._triangles = dict(triangles)
+        self.unloads = 0
+
+    def UnloadChildren(self):
+        self.unloads += 1
+        self._triangles = {name: triangle.reopened() for name, triangle in self._triangles.items()}
+
+    def Triangles(self):
+        return _FakeTriangleCollection(self._triangles)
+
+    def Vectors(self):
+        return _FakeTriangleCollection({})
+
+    def triangle(self, name):
+        return self._triangles[name]
 
 
 def _triangle_values(triangle):
@@ -247,10 +301,13 @@ class ExportMacroStoredShapeTests(unittest.TestCase):
     def setUp(self):
         self.module = _load_macro()
 
-    def _exporter(self):
-        return self.module.ResQReservingClassExporter(
+    def _exporter(self, triangles=None):
+        exporter = self.module.ResQReservingClassExporter(
             _migration(), arcrho_project_name="Project", rc_path="Line/Class", server_root=Path(".")
         )
+        if triangles is not None:
+            exporter.reserving_class = _FakeReservingClass(triangles)
+        return exporter
 
     @staticmethod
     def _sidecar(origin, development, stored_origin, stored_development):
@@ -300,18 +357,56 @@ class ExportMacroStoredShapeTests(unittest.TestCase):
         self.assertEqual(len(triangle.written), 55)
         self.assertEqual((triangle.OriginLength, triangle.DevelopmentLength), (12, 12))
 
-    def test_a_stored_origin_mismatch_is_a_skip_that_names_both_lengths(self):
+    def test_a_coarser_origin_store_is_emptied_saved_and_reopened_before_it_moves(self):
+        """ResQ keeps the figures monthly, ArcRho yearly: the store moves instead of the export stopping."""
         triangle = _FakeTriangle(origin_length=1, development_length=1)
+        exporter = self._exporter({"Paid Loss": triangle})
+        stored = _FakeTriangle(origin_length=12, development_length=1)
+        values = _triangle_values(stored)
 
-        with self.assertRaises(self.module.ExportSkipped) as caught:
-            self._exporter()._write_triangle_values(triangle, self._sidecar(12, 12, 12, 12), [[1.0]])
+        exporter._write_triangle_values(triangle, self._sidecar(12, 12, 12, 1), values, "Paid Loss")
 
-        self.assertEqual(caught.exception.reason, "stored_origin_mismatch")
-        self.assertIn("origin length 12", str(caught.exception))
-        self.assertIn("at 1", str(caught.exception))
-        self.assertEqual(triangle.clears, 0)
-        self.assertEqual(triangle.saves, 0)
-        self.assertEqual(triangle.written, {})
+        written = exporter.reserving_class.triangle("Paid Loss")
+        self.assertEqual(exporter.reserving_class.unloads, 1)
+        self.assertIsNot(written, triangle)
+        self.assertEqual(triangle.clears, 1)
+        self.assertEqual(triangle.saves, 1)  # the empty save that frees the store
+        self.assertEqual((written.StoredOriginLength, written.StoredDevelopmentLength), (12, 1))
+        self.assertEqual((written.OriginLength, written.DevelopmentLength), (12, 12))
+        self.assertEqual({key[0] for key in written.written}, {1})
+        self.assertEqual(len(written.written), sum(len(row) for row in values))
+        self.assertEqual(written.written[(1, 1, 113)], 1113.0)
+        self.assertEqual(written.saves, 1)
+
+    def test_a_finer_origin_store_is_reopened_and_moves_down(self):
+        """The other direction: ResQ keeps the figures yearly and ArcRho keeps them monthly."""
+        triangle = _FakeTriangle(origin_length=12, development_length=12)
+        exporter = self._exporter({"Paid Loss": triangle})
+        stored = _FakeTriangle(origin_length=1, development_length=1)
+        values = _triangle_values(stored)
+
+        exporter._write_triangle_values(triangle, self._sidecar(12, 12, 1, 1), values, "Paid Loss")
+
+        written = exporter.reserving_class.triangle("Paid Loss")
+        self.assertEqual(exporter.reserving_class.unloads, 1)
+        self.assertEqual((written.StoredOriginLength, written.StoredDevelopmentLength), (1, 1))
+        self.assertEqual((written.OriginLength, written.DevelopmentLength), (12, 12))
+        self.assertEqual(len(written.written), sum(len(row) for row in values))
+        self.assertEqual(exporter.skipped, {})
+
+    def test_a_matching_origin_store_is_never_reopened(self):
+        """Only a stored origin period that has to move pays for reading the class again."""
+        triangle = _FakeTriangle(origin_length=12, development_length=12)
+        exporter = self._exporter({"Paid Loss": triangle})
+        stored = _FakeTriangle(origin_length=12, development_length=1)
+
+        exporter._write_triangle_values(
+            triangle, self._sidecar(12, 12, 12, 1), _triangle_values(stored), "Paid Loss"
+        )
+
+        self.assertEqual(exporter.reserving_class.unloads, 0)
+        self.assertEqual(triangle.saves, 1)
+        self.assertEqual((triangle.StoredOriginLength, triangle.StoredDevelopmentLength), (12, 1))
 
 
 class ExportMacroNeverCreatesTests(unittest.TestCase):
