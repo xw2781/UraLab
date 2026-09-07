@@ -24,6 +24,12 @@ const openPathStubSource = `
   export function openPathThroughDesktopHost() {
     return Promise.resolve({ ok: true });
   }
+  export function revealPathThroughDesktopHost() {
+    return Promise.resolve({ ok: true });
+  }
+  export function copyTextToClipboard() {
+    return Promise.resolve({ ok: true });
+  }
 `;
 const openPathStubUrl = `data:text/javascript;base64,${Buffer.from(openPathStubSource).toString("base64")}`;
 const testableComponentSource = componentSource
@@ -32,7 +38,7 @@ const testableComponentSource = componentSource
     JSON.stringify(contextMenuStubUrl),
   )
   .replace(
-    '"/ui/shared/integrations/open_path.js?v=20260812a"',
+    '"/ui/shared/integrations/open_path.js?v=20260907b"',
     JSON.stringify(openPathStubUrl),
   );
 const linksTab = await import(
@@ -299,6 +305,8 @@ function setup(options = {}) {
     onRefreshLinks: options.onRefreshLinks || (() => ({ ok: true })),
     onBreakLinks: options.onBreakLinks || (() => ({ ok: true })),
     onOpenWorkbook: options.onOpenWorkbook || (() => ({ ok: true })),
+    onRevealWorkbook: options.onRevealWorkbook || (() => ({ ok: true })),
+    onCopyPath: options.onCopyPath || (() => ({ ok: true })),
     onOpenDataset: options.onOpenDataset || null,
     onStatus: options.onStatus,
   });
@@ -362,6 +370,8 @@ test("renders one compact row per link and offers the bulk actions through the c
     [
       "Open workbook",
       "Open workbook as Read-Only",
+      "Copy file path",
+      "Open file location",
       "Open source dataset",
       "Refresh selected",
       "Break selected",
@@ -517,6 +527,8 @@ test("ArcRho links sit in the top section, Excel below, and a formula's rows joi
   assert.deepEqual(visibleMenuLabels(documentRef), [
     "Open workbook",
     "Open workbook as Read-Only",
+    "Copy file path",
+    "Open file location",
     "Refresh selected",
     "Break selected",
     "Refresh all",
@@ -647,6 +659,8 @@ test("row context menu opens its workbook normally or read-only from the top ent
   assert.deepEqual(visibleMenuLabels(documentRef), [
     "Open workbook",
     "Open workbook as Read-Only",
+    "Copy file path",
+    "Open file location",
     "Refresh selected",
     "Break selected",
     "Refresh all",
@@ -664,6 +678,39 @@ test("row context menu opens its workbook normally or read-only from the top ent
   assert.deepEqual(statuses, [
     { message: "Workbook opened.", tone: "success" },
     { message: "Workbook opened read-only.", tone: "success" },
+  ]);
+});
+
+test("an Excel row copies its workbook path and opens the folder holding it", async () => {
+  const copied = [];
+  const revealed = [];
+  const statuses = [];
+  const { documentRef, container, controller } = setup({
+    getLinks: () => sampleLinks,
+    onCopyPath: (text) => {
+      copied.push(text);
+      return { ok: true };
+    },
+    onRevealWorkbook: (path) => {
+      revealed.push(path);
+      return { ok: true };
+    },
+    onStatus: (message, tone) => statuses.push({ message, tone }),
+  });
+  await controller.refresh();
+
+  const rows = allRows(container.children[0]);
+  await rows[1].dispatch("contextmenu", { clientX: 12, clientY: 24 });
+  await menuItem(documentRef, "copy-workbook-path").click();
+
+  await rows[1].dispatch("contextmenu", { clientX: 12, clientY: 24 });
+  await menuItem(documentRef, "open-workbook-location").click();
+
+  assert.deepEqual(copied, [sampleLinks[1].workbookPath]);
+  assert.deepEqual(revealed, [sampleLinks[1].workbookPath]);
+  assert.deepEqual(statuses, [
+    { message: "File path copied.", tone: "success" },
+    { message: "File location opened.", tone: "success" },
   ]);
 });
 

@@ -1,0 +1,10 @@
+{
+  "type": "feature",
+  "scope": "dataset",
+  "audience": "user",
+  "summary": "The Data tab's right-click menu has a Clear data command that sets every cell of a hand-entered dataset to 0.",
+  "details": [
+    "It shows only while the grid is editable, beside Paste.",
+    "Once every cell is 0 the Origin Length, Development Length, and Stored at controls open up, as they do for a new dataset."
+  ]
+}

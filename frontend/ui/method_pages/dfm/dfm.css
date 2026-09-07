@@ -288,21 +288,6 @@ body {
   display: inline-flex;
   width: var(--dfm-spin-w);
   max-width: 100%;
-  flex: 0 0 auto;
-}
-
-/* A length row carries the period the file is really held at beside the period
-   it is shown at, as ResQ's own Edit Triangle dialog puts them, so the cell
-   sizes to its contents instead of the shared short-field width. */
-.dfmFormField.dfmLengthField {
-  width: auto;
-  max-width: 100%;
-}
-
-.dfmFormField .lenStoredLabel {
-  color: var(--muted, #6b7280);
-  font-size: var(--ar-details-control-font-size, 12px);
-  white-space: nowrap;
 }
 .dfmSpinner select,
 .dfmSpinner input {

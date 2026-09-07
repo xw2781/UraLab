@@ -22,8 +22,8 @@ import { tokenizeFormula } from "/ui/shared/components/formula_bar/formula_text.
 
 const FORMULA_HOVER_STYLE_ID = "arcrho-formula-hover-style";
 const FORMULA_HOVER_STYLESHEETS = [
-  "/ui/shared/components/formula_bar/formula_bar.css?v=20260902a",
-  "/ui/shared/components/formula_hover/formula_hover.css?v=20260902b",
+  "/ui/shared/components/formula_bar/formula_bar.css?v=20260907a",
+  "/ui/shared/components/formula_hover/formula_hover.css?v=20260907a",
 ];
 const DEFAULT_HIDE_DELAY_MS = 140;
 const VIEWPORT_MARGIN_PX = 8;
@@ -80,8 +80,17 @@ export function calculateFormulaHoverPosition(anchorRect, hoverRect, viewport = 
   return layout;
 }
 
+/**
+ * A context is either a formula to show, or a note explaining why the formula
+ * cannot be shown. A note is always read-only and carries no formula: it is the
+ * bar's answer when the dataset is being viewed at a coarser period than the
+ * one its cells are stored at, where a saved link names a stored cell that this
+ * view has no square for.
+ */
 function normalizedFormulaContext(rawContext) {
   if (!rawContext || typeof rawContext !== "object") return null;
+  const note = String(rawContext.note ?? "").trim();
+  if (note) return { ...rawContext, note, formula: "", readOnly: true };
   const formula = String(rawContext.formula ?? rawContext.reference ?? "").trim();
   if (!formula) return null;
   return { ...rawContext, formula };
@@ -306,6 +315,15 @@ export function createFormulaHoverEditor(options = {}) {
   /** Swap between the rendered formula and the editable input, then re-measure. */
   function setEditing(editing) {
     if (!input || !display) return;
+    // A note is never typed into, so the bar stays on its rendered side and
+    // shows the sentence as prose rather than as formula tokens.
+    if (activeContext?.note) {
+      input.style.display = "none";
+      display.style.display = "";
+      display.textContent = activeContext.note;
+      reposition();
+      return;
+    }
     if (editing) {
       input.style.display = "";
       display.style.display = "none";
@@ -438,6 +456,8 @@ export function createFormulaHoverEditor(options = {}) {
     input.value = context.formula;
     input.readOnly = !!context.readOnly;
     input.setAttribute("aria-readonly", context.readOnly ? "true" : "false");
+    root.classList.toggle("isNote", !!context.note);
+    root.setAttribute("aria-label", context.note ? "Linked cell notice" : "External Excel formula");
     root.classList.add("isOpen");
     root.setAttribute("aria-hidden", "false");
     setEditing(!!openOptions.focus && !context.readOnly);
@@ -554,9 +574,12 @@ export function createFormulaHoverEditor(options = {}) {
     if (!anchor || !context) return false;
     anchor.setAttribute?.(
       "aria-description",
-      "Linked to Excel. Hover, click, or press F2 to view the formula.",
+      context.note || "Linked to Excel. Hover, click, or press F2 to view the formula.",
     );
-    const key = String(context.reference || context.formula || "");
+    // A note is the same sentence on every cell, so the caller supplies a key
+    // that still tells one cell from the next and the bar keeps behaving as a
+    // per-cell control.
+    const key = String(attachOptions.key || context.reference || context.formula || "");
     const openOptions = () => ({
       positionRect: attachOptions.positionRect || null,
       key,

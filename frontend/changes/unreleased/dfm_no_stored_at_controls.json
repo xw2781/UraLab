@@ -1,0 +1,6 @@
+{
+  "type": "improvement",
+  "scope": "dfm",
+  "audience": "user",
+  "summary": "The DFM Details tab no longer shows a Stored at value beside Origin Length and Development Length; only the Dataset window does."
+}

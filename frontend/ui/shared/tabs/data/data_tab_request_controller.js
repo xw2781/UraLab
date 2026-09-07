@@ -61,16 +61,49 @@ export function registerDataTabRequestController(runtime) {
     return numericDevelopmentLabels(fallbackCount);
   }
 
-  function buildProjectInstanceDraftMask(originCount, devCount, dataFormat) {
+  // Where a triangle's cells stop: the project's own calendar diagonal, which
+  // its Origin Start Date, Origin End Date, and Development End Date decide
+  // together. A grid built here has no file to read that shape from, so the
+  // server answers for it rather than the window guessing at a rule of its own.
+  // A Vector has no diagonal and asks for nothing.
+  async function fetchTriangleGridShape(project, originLen, devLen) {
+    const params = new URLSearchParams({
+      project_name: String(project || ""),
+      origin_length: String(originLen),
+      development_length: String(devLen),
+    });
+    const resp = await fetch(`/datasets/triangle-shape?${params.toString()}`);
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok || data?.ok === false) {
+      throw new Error(String(
+        data?.detail || data?.error || data?.message
+        || `Cannot read the triangle shape for project '${project}'.`,
+      ));
+    }
+    return {
+      originCount: Number(data.origin_count) || 0,
+      developmentCount: Number(data.development_count) || 0,
+      mask: Array.isArray(data.mask)
+        ? data.mask.map((row) => (Array.isArray(row) ? row.map(Boolean) : []))
+        : [],
+    };
+  }
+
+  async function fetchGridShapeForFormat(project, dataFormat) {
+    if (normalizeDraftDataFormat(dataFormat) === "Vector") return null;
+    const { originLen, devLen } = getTriInputs();
+    return fetchTriangleGridShape(project, originLen, devLen);
+  }
+
+  function buildZeroFilledMask(originCount, devCount, dataFormat, shapeMask) {
     const isVector = normalizeDraftDataFormat(dataFormat) === "Vector";
     return Array.from({ length: originCount }, (_, r) => (
-      Array.from({ length: devCount }, (_, c) => isVector || r + c < devCount)
+      Array.from({ length: devCount }, (_, c) => isVector || shapeMask?.[r]?.[c] === true)
     ));
   }
 
-  function buildProjectInstanceDraftModel() {
+  function buildZeroFilledModel(dataFormat, shape) {
     const { originLen, devLen } = getTriInputs();
-    const dataFormat = getProjectInstanceDraftDataFormat();
     const isVector = dataFormat === "Vector";
     const originResult = validateDatasetOriginLabels(state.headerLabels, {
       originLen,
@@ -82,15 +115,21 @@ export function registerDataTabRequestController(runtime) {
         + "Set a valid Origin Start Date in Project Settings, then try again.",
       );
     }
-    const originLabels = originResult.labels;
+    // The rows and columns are the shape's, so the grid a draft is typed into
+    // is the grid the save writes.
+    const originLabels = originResult.labels.slice(0, shape?.originCount || undefined);
     const projectDevLabels = resolveDevelopmentLabels(state.devHeaderLabels, devLen);
-    const devLabels = isVector ? [projectDevLabels[0] || "1"] : projectDevLabels;
+    // The project's development headers run to the end of its own grid, which
+    // can be later than the valuation date a triangle stops at, so the columns
+    // are the ones the shape has rather than the ones there are labels for.
+    const devLabels = isVector
+      ? [projectDevLabels[0] || "1"]
+      : projectDevLabels.slice(0, Math.max(1, shape?.developmentCount || projectDevLabels.length));
     const originCount = Math.max(1, originLabels.length);
     const devCount = Math.max(1, devLabels.length);
-    const mask = buildProjectInstanceDraftMask(originCount, devCount, dataFormat);
+    const mask = buildZeroFilledMask(originCount, devCount, dataFormat, shape?.mask);
     const values = mask.map((row) => row.map((hasValue) => (hasValue ? 0 : null)));
     return {
-      id: `draft:${getDatasetInstanceNameValue() || getTriInputs().tri || "dataset"}`,
       origin_labels: originLabels,
       dev_labels: devLabels,
       values,
@@ -100,10 +139,65 @@ export function registerDataTabRequestController(runtime) {
     };
   }
 
-  function initializeProjectInstanceDraftModel() {
+  function buildProjectInstanceDraftModel(shape) {
+    return {
+      id: `draft:${getDatasetInstanceNameValue() || getTriInputs().tri || "dataset"}`,
+      ...buildZeroFilledModel(getProjectInstanceDraftDataFormat(), shape),
+    };
+  }
+
+  // A hand-entered dataset whose every value is 0 is reshaped in place when a
+  // length changes: the run that normally follows would read the file's old
+  // values back over the zeros. The grid is rebuilt empty at the new lengths,
+  // every cell marked as an edit so the save carries it, and the stored period
+  // is released so that save writes a new file at this shape.
+  async function refreshClearedDatasetModel() {
+    if (
+      runtime.isProjectInstanceDraft
+      || runtime.isDfmDataTabHost()
+      || !state.model
+      || !runtime.currentDatasetIsManualTriangleOrVector()
+      || !runtime.datasetValuesAreAllZero()
+    ) return false;
+    const project = getResolvedProjectValue();
+    if (!project) return false;
+    const { originLen, devLen } = getTriInputs();
+    const isCurrent = () => {
+      const current = getTriInputs();
+      return String(current.originLen) === String(originLen) && String(current.devLen) === String(devLen);
+    };
+    await ensureHeadersForProject(project, { isCurrent });
+    await ensureDevHeadersForProject(project, { isCurrent });
+    if (!isCurrent()) return true;
+    const dataFormat = normalizeDraftDataFormat(
+      runtime.currentDatasetSidecarDataFormat || state.model.data_format,
+    );
+    let model;
+    try {
+      const shape = await fetchGridShapeForFormat(project, dataFormat);
+      if (!isCurrent()) return true;
+      model = buildZeroFilledModel(dataFormat, shape);
+    } catch (err) {
+      setStatus(String(err?.message || err));
+      return true;
+    }
+    state.dirty.clear();
+    model.mask.forEach((row, r) => row.forEach((hasValue, c) => {
+      if (hasValue) state.dirty.set(`${r},${c}`, 0);
+    }));
+    state.model = { ...state.model, ...model };
+    runtime.releaseStoredShape();
+    renderTable();
+    notifyDatasetUpdated();
+    renderChart();
+    setStatus(`The data is all 0, so the grid was reshaped to Origin ${originLen}, Development ${devLen}. Values entered now are saved at that shape.`);
+    return true;
+  }
+
+  function initializeProjectInstanceDraftModel(shape) {
     state.dirty.clear();
     state.fileMtime = null;
-    state.model = buildProjectInstanceDraftModel();
+    state.model = buildProjectInstanceDraftModel(shape);
     const meta = document.getElementById("dsMeta");
     if (meta) {
       meta.textContent = `draft | origins=${state.model.origin_labels.length} | dev=${state.model.dev_labels.length}`;
@@ -140,7 +234,9 @@ export function registerDataTabRequestController(runtime) {
       if (!isCurrent()) return false;
       await ensureDevHeadersForProject(project, { forceRefresh: true, isCurrent });
       if (!isCurrent()) return false;
-      initializeProjectInstanceDraftModel();
+      const shape = await fetchGridShapeForFormat(project, getProjectInstanceDraftDataFormat());
+      if (!isCurrent()) return false;
+      initializeProjectInstanceDraftModel(shape);
       renderTable();
       notifyDatasetUpdated();
       renderChart();
@@ -932,10 +1028,11 @@ export function registerDataTabRequestController(runtime) {
     getProjectInstanceDraftDataFormat,
     numericDevelopmentLabels,
     resolveDevelopmentLabels,
-    buildProjectInstanceDraftMask,
+    buildZeroFilledMask,
     buildProjectInstanceDraftModel,
     initializeProjectInstanceDraftModel,
     refreshProjectInstanceDraftModel,
+    refreshClearedDatasetModel,
     getLenDropdownIds,
     getLenDropdownElements,
     getLenDropdownActiveIndex,

@@ -47,6 +47,15 @@ const datasetFormulaUrl = dataUrl((await readFile(
   .replace('"/ui/shared/integrations/excel_reference.js?v=20260715a"', JSON.stringify(dataUrl(referenceSource)))
   .replace('"/ui/shared/dataset/dataset_internal_reference.js?v=20260830a"', JSON.stringify(internalReferenceUrl)));
 
+// The read-only refusal opens a page message box rather than a status line.
+const messageBoxStubUrl = dataUrl(`
+  export function showPageMessageBox(options) {
+    globalThis.__arTestMessageBoxes = globalThis.__arTestMessageBoxes || [];
+    globalThis.__arTestMessageBoxes.push(options);
+    return Promise.resolve();
+  }
+`);
+
 let interactionSource = await readFile(
   new URL("../ui/shared/tabs/data/dataset_grid_interactions.js", import.meta.url),
   "utf8",
@@ -72,7 +81,7 @@ interactionSource = interactionSource
     JSON.stringify(spreadsheetStubUrl),
   )
   .replace(
-    '"/ui/shared/tabs/data/dataset_grid_view.js?v=20260829b"',
+    '"/ui/shared/tabs/data/dataset_grid_view.js?v=20260907c"',
     JSON.stringify(viewStubUrl),
   )
   .replace(
@@ -80,7 +89,7 @@ interactionSource = interactionSource
     JSON.stringify(dataUrl(referenceSource)),
   )
   .replace(
-    '"/ui/shared/components/formula_hover/formula_hover.js?v=20260902b"',
+    '"/ui/shared/components/formula_hover/formula_hover.js?v=20260907a"',
     JSON.stringify(formulaHoverStubUrl),
   )
   .replace(
@@ -90,6 +99,10 @@ interactionSource = interactionSource
   .replace(
     '"/ui/shared/dataset/dataset_formula.js?v=20260830a"',
     JSON.stringify(datasetFormulaUrl),
+  )
+  .replace(
+    '"/ui/shared/components/message_box/message_box.js?v=20260831a"',
+    JSON.stringify(messageBoxStubUrl),
   );
 const interactions = await import(dataUrl(interactionSource));
 

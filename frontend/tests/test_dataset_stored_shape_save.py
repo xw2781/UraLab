@@ -100,6 +100,7 @@ class ManualDatasetStoredShapeSaveTests(unittest.TestCase):
         development_length: int,
         values=None,
         stored_development_length: int | None = None,
+        stored_values_cleared: bool = False,
         data_format: str = "Triangle",
     ):
         written: dict = {}
@@ -141,6 +142,7 @@ class ManualDatasetStoredShapeSaveTests(unittest.TestCase):
                 origin_length=origin_length,
                 development_length=development_length,
                 stored_development_length=stored_development_length,
+                stored_values_cleared=stored_values_cleared,
                 values=values,
             )
 
@@ -273,6 +275,27 @@ class ManualDatasetStoredShapeSaveTests(unittest.TestCase):
         self.assertEqual(result["stored_origin_length"], 12)
         self.assertEqual(result["stored_development_length"], 12)
         self.assertTrue(os.path.exists(os.path.join(self.data_dir, ANNUAL_CSV)))
+        self.assertFalse(os.path.exists(monthly_path))
+
+    def test_cleared_dataset_is_relabelled_to_the_shape_its_new_values_have(self) -> None:
+        # The Data tab's `Clear data` set every value to 0, the lengths moved,
+        # and new values were entered at the new shape: the save says so and
+        # the values the old file still holds no longer fix the shape.
+        monthly_path = self._write_stored_csv(MONTHLY_CSV, [[100.0, 110.0], [120.0, np.nan]])
+
+        result, payload = self._save(
+            origin_length=12,
+            development_length=12,
+            values=[[1.0, 2.0], [3.0, None]],
+            stored_values_cleared=True,
+        )
+
+        self.assertEqual(payload["stored_origin_length"], 12)
+        self.assertEqual(payload["stored_development_length"], 12)
+        self.assertEqual(payload["csv_file"], ANNUAL_CSV)
+        self.assertEqual(result["stored_development_length"], 12)
+        written = dataset_service.load_triangle_values(os.path.join(self.data_dir, ANNUAL_CSV))
+        self.assertEqual(written.iat[0, 0], 1.0)
         self.assertFalse(os.path.exists(monthly_path))
 
     def test_empty_dataset_relabel_without_values_rebuilds_the_grid(self) -> None:

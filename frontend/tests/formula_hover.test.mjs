@@ -318,6 +318,65 @@ test("the formula holds one line and keeps a stretch of bar to click past its en
   assert.match(sharedStyles, /\.arFormulaBarDisplay\s*\{[^}]*padding:\s*0 20px 0 0/su);
 });
 
+const NOTE = "This dataset's cells are linked. Set Origin Length to 1 to view or edit the formula.";
+
+test("a notice takes the place of the formula and can never be typed into", () => {
+  // What a linked cell says while the window shows the dataset at a coarser
+  // period than the file is stored at: there is no formula to show, because no
+  // cell on screen is one a link names.
+  const context = setup();
+  context.controller.open(context.anchor, { note: NOTE, readOnly: false });
+  const root = byClass(context.documentRef, "arFormulaHover");
+  const input = byClass(context.documentRef, "arFormulaBarInput");
+  const display = byClass(context.documentRef, "arFormulaBarDisplay");
+
+  assert.ok(root.classList.contains("isOpen"));
+  assert.ok(root.classList.contains("isNote"));
+  assert.equal(display.textContent, NOTE);
+  assert.equal(display.style.display, "");
+  // The notice is read, never edited: the input stays hidden and read-only
+  // however the caller asked for the bar to open.
+  assert.equal(input.style.display, "none");
+  assert.equal(input.value, "");
+  assert.equal(input.readOnly, true);
+  assert.equal(context.controller.isEditing(), false);
+  assert.equal(context.controller.getDraft(), "");
+});
+
+test("a notice never leaves the bar dressed as a formula for the next cell", () => {
+  const context = setup();
+  context.controller.open(context.anchor, { note: NOTE });
+  const root = byClass(context.documentRef, "arFormulaHover");
+  assert.ok(root.classList.contains("isNote"));
+
+  context.controller.open(context.anchor, LINK_CONTEXT);
+  assert.equal(root.classList.contains("isNote"), false);
+  const display = byClass(context.documentRef, "arFormulaBarDisplay");
+  // Back to the colorized formula rendering, not the notice's plain sentence.
+  assert.ok(display.children.some((child) => child.classList.contains("fmtExcelRef")));
+  const input = byClass(context.documentRef, "arFormulaBarInput");
+  assert.equal(input.value, LINK_CONTEXT.reference);
+});
+
+test("every cell can carry the same notice and still be told apart", () => {
+  // The notice is one sentence for the whole grid, so the caller keys the bar
+  // by cell; without that a click on one cell would close the bar opened on
+  // its neighbour.
+  const context = setup();
+  const secondCell = context.documentRef.createElement("td");
+  secondCell._rect = { left: 140, top: 100, right: 240, bottom: 128, width: 100, height: 28 };
+  context.documentRef.body.appendChild(secondCell);
+  context.controller.attach(context.anchor, { note: NOTE }, { key: "note:0,0" });
+  context.controller.attach(secondCell, { note: NOTE }, { key: "note:0,1" });
+
+  context.anchor.dispatch("click", { button: 0 });
+  const root = byClass(context.documentRef, "arFormulaHover");
+  assert.ok(root.classList.contains("isOpen"));
+  secondCell.dispatch("click", { button: 0 });
+  assert.ok(root.classList.contains("isOpen"));
+  assert.equal(context.anchor.getAttribute("aria-description"), NOTE);
+});
+
 test("the bar is measured again once the stylesheets it is measured in arrive", () => {
   const context = setup();
   const root = openSizedBar(context);

@@ -390,6 +390,7 @@ export function createDatasetExternalLinksController({
   validateLinksBatch = validateExcelLinksBatch,
   isReadOnly = () => false,
   isTransposed = () => false,
+  isAtStoredShape = () => true,
   onInventoryChanged = () => {},
   onTargetsClaimed = () => {},
 } = {}) {
@@ -544,7 +545,12 @@ export function createDatasetExternalLinksController({
     return removed;
   }
 
+  // A saved link names a cell of the file's own triangle. While the window is
+  // showing that triangle at a coarser period, every cell on screen stands for
+  // several stored ones, so there is no square to paint, name, or release: the
+  // whole inventory stands still and comes back when the lengths do.
   function hardCodeTargetCells(targetCells) {
+    if (!isAtStoredShape()) return 0;
     const cells = Array.isArray(targetCells) ? targetCells : [];
     const indexes = linksForTargetCells(cells);
     const overlapsPendingRequest = cells.some((target) => pendingTargetKeys.has(targetCellKey(target)));
@@ -552,7 +558,11 @@ export function createDatasetExternalLinksController({
     return removeLinkIndexes(indexes);
   }
 
+  // The Value and Destination columns are read off the grid on screen. A
+  // coarser view is not the grid the link points into, so they are left blank
+  // rather than quoting a number and a period the link never named.
   function listRecords() {
+    const atStoredShape = !!isAtStoredShape();
     const groups = new Map();
     links.forEach((link, linkIndex) => {
       const description = describeExcelReference(link.reference);
@@ -580,8 +590,8 @@ export function createDatasetExternalLinksController({
         workbookPath: group.workbookPath,
         worksheet: group.worksheet,
         address: group.address,
-        value: targetValuePreview(state?.model, targets, group.isRange),
-        destination: describeTargetDestination(state?.model, targets) || "Data",
+        value: atStoredShape ? targetValuePreview(state?.model, targets, group.isRange) : "",
+        destination: (atStoredShape ? describeTargetDestination(state?.model, targets) : "") || "Data",
         affectedCellCount: targets.length,
         readOnly: !!isReadOnly(),
       };
@@ -746,7 +756,7 @@ export function createDatasetExternalLinksController({
   }
 
   function getCellLinkInfo(displayRow, displayColumn) {
-    if (!state?.model) return null;
+    if (!state?.model || !isAtStoredShape()) return null;
     const actual = displayToActualCell(displayRow, displayColumn, !!isTransposed());
     const key = targetCellKey(actual);
     const decoration = getTargetDecorationIndex().targets.get(key);
@@ -766,7 +776,7 @@ export function createDatasetExternalLinksController({
   }
 
   function decorateCell(cell, displayRow, displayColumn) {
-    if (!cell || !state?.model) return;
+    if (!cell || !state?.model || !isAtStoredShape()) return;
     const actual = displayToActualCell(displayRow, displayColumn, !!isTransposed());
     const key = targetCellKey(actual);
     const index = getTargetDecorationIndex();
@@ -987,6 +997,13 @@ export function createDatasetExternalLinksController({
     return { linkedCellCount, changedCount, failedCount, failures };
   }
 
+  // Whether the dataset holds any link at all, whatever the window is
+  // showing. The Data tab asks this to decide whether a view that cannot
+  // paint links has any to explain away.
+  function hasLinks() {
+    return links.length > 0;
+  }
+
   return {
     abort,
     breakLink,
@@ -994,6 +1011,7 @@ export function createDatasetExternalLinksController({
     clear,
     commitReference,
     decorateCell,
+    hasLinks,
     hardCodeTargetCells,
     getCellLinkInfo,
     getLinkFailures: listFailures,

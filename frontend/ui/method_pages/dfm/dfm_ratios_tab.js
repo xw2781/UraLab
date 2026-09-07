@@ -24,8 +24,8 @@ import {
 import {
   invalidatePersistedResultsDerivations,
   renderResultsTable,
-} from "/ui/method_pages/dfm/dfm_results_tab.js?v=20260830a";
-import { formatCellValue } from "/ui/shared/tabs/data/dataset_grid_view.js?v=20260811d";
+} from "/ui/method_pages/dfm/dfm_results_tab.js?v=20260907a";
+import { formatCellValue } from "/ui/shared/tabs/data/dataset_grid_view.js?v=20260907c";
 import { renderDatasetGridPlaceholder } from "/ui/shared/tabs/data/dataset_grid_placeholder.js?v=20260809a";
 import { openContextMenu } from "/ui/shared/components/context_menu/context_menu.js";
 import {

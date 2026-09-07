@@ -40,15 +40,15 @@ import {
   isRatioChartOpen,
   scheduleRatioChartRender,
   restoreRatioHistoryUi,
-} from "/ui/method_pages/dfm/dfm_ratios_tab.js?v=20260906a";
+} from "/ui/method_pages/dfm/dfm_ratios_tab.js?v=20260907a";
 import {
   renderResultsTable,
   wireResultsRatioBasisControls,
   buildPercentDevelopedVector,
   buildResultsVector,
-} from "/ui/method_pages/dfm/dfm_results_tab.js?v=20260830a";
+} from "/ui/method_pages/dfm/dfm_results_tab.js?v=20260907a";
 import { wireNotesInput } from "/ui/method_pages/dfm/dfm_notes_tab.js?v=20260714a";
-import { initDfmCurvesTab, renderDfmCurvesTab } from "/ui/method_pages/dfm/dfm_curves_tab.js?v=20260903c";
+import { initDfmCurvesTab, renderDfmCurvesTab } from "/ui/method_pages/dfm/dfm_curves_tab.js?v=20260907a";
 import { initDfmLinks, refreshDfmLinks } from "/ui/method_pages/dfm/dfm_links_tab.js?v=20260901a";
 import {
   syncMethodNameFromInputs,
@@ -56,7 +56,7 @@ import {
   wireMethodName,
   wireDfmInstanceCreationNotice,
   wireDetailsThresholdReset,
-} from "/ui/method_pages/dfm/dfm_details.js?v=20260906a";
+} from "/ui/method_pages/dfm/dfm_details.js?v=20260907a";
 import {
   scheduleRatioSelectionLoad,
   saveRatioSelectionPattern,
@@ -70,10 +70,10 @@ import {
   stopDfmMethodFileWatcher,
   scheduleDfmMethodPreview,
   cancelDfmMethodAsyncTasks,
-} from "/ui/method_pages/dfm/dfm_persistence.js?v=20260906a";
-import { wireRatioSyncChannel, requestRatioStateSync } from "/ui/method_pages/dfm/dfm_sync.js?v=20260906a";
-import { wireDfmRpcBridgeTabBar } from "/ui/method_pages/dfm/dfm_rpc_bridge_tabbar.js?v=20260906a";
-import { reviewArcBotDfmEditApproval } from "/ui/method_pages/dfm/dfm_rpc_bridge_client.js?v=20260906a";
+} from "/ui/method_pages/dfm/dfm_persistence.js?v=20260907a";
+import { wireRatioSyncChannel, requestRatioStateSync } from "/ui/method_pages/dfm/dfm_sync.js?v=20260907a";
+import { wireDfmRpcBridgeTabBar } from "/ui/method_pages/dfm/dfm_rpc_bridge_tabbar.js?v=20260907a";
+import { reviewArcBotDfmEditApproval } from "/ui/method_pages/dfm/dfm_rpc_bridge_client.js?v=20260907a";
 import { wireDfmTabPopoutWindows } from "/ui/method_pages/dfm/dfm_tab_popout_window.js?v=20260903a";
 import {
   clearRatioHistoryTempSession,

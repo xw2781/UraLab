@@ -21,6 +21,10 @@ const gridInteractionsSource = await readFile(
   new URL("../ui/shared/tabs/data/dataset_grid_interactions.js", import.meta.url),
   "utf8",
 );
+const dataTabControllerSource = await readFile(
+  new URL("../ui/shared/tabs/data/data_tab_controller.js", import.meta.url),
+  "utf8",
+);
 const runControllerSource = await readFile(
   new URL("../ui/shared/dataset/dataset_run_controller.js", import.meta.url),
   "utf8",
@@ -391,10 +395,11 @@ test("the offered lengths follow the open dataset's stored period", () => {
   assert.match(persistenceControllerSource, /applyStoredLengthsFromResponse\(data\.exists \? data : null\);/u);
   assert.match(persistenceControllerSource, /applyStoredLengthsFromResponse\(resp\.data\);/u);
   // A hand-entered dataset that still holds nothing has no stored period to
-  // protect, so the whole ladder stays open until its first real save.
+  // protect, so the whole ladder stays open until its first real save, and so
+  // does one that was cleared and reshaped before its new values went in.
   assert.match(
     persistenceControllerSource,
-    /function storedLengthIsPending\(\) \{\s*return currentDatasetIsManualTriangleOrVector\(\) && datasetValuesAreAllZero\(\);/u,
+    /function storedLengthIsPending\(\) \{\s*return currentDatasetIsManualTriangleOrVector\(\) && \(datasetValuesAreAllZero\(\) \|\| releasedLengths !== null\);/u,
   );
   assert.match(persistenceControllerSource, /applyStoredLengthChoices\(\);/u);
   // Narrowing runs before the saved display shape is written into the control,
@@ -472,7 +477,7 @@ test("a Stored at control offers the periods that divide the length beside it", 
   }
 });
 
-test("both hosts show a Stored at value beside each length", () => {
+test("only the Dataset window shows a Stored at value beside each length", () => {
   // The Dataset window draws the pair as two of the same length control.
   assert.match(datasetViewerViewSource, /id="originStoredLenWrap"/u);
   assert.match(datasetViewerViewSource, /id="originStoredLenSelect"/u);
@@ -480,14 +485,40 @@ test("both hosts show a Stored at value beside each length", () => {
   assert.match(datasetViewerViewSource, /id="devStoredLenSelect"/u);
   assert.equal((datasetViewerViewSource.match(/class="lenStoredLabel">Stored at:/gu) || []).length, 2);
   assert.match(datasetViewerCss, /#datasetTopBar \.lenStoredLabel \{/u);
-  // The DFM Data tab hosts the same two controls in its own spinner shape.
-  assert.match(dfmPageSource, /data-target="originStoredLenSelect"/u);
-  assert.match(dfmPageSource, /data-target="devStoredLenSelect"/u);
-  assert.equal((dfmPageSource.match(/class="lenStoredLabel">Stored at:/gu) || []).length, 2);
+  // The DFM page does not save the dataset sidecar, so it carries neither
+  // control, and the shared repaint leaves that host alone.
+  assert.doesNotMatch(dfmPageSource, /StoredLenSelect/u);
+  assert.doesNotMatch(dfmPageSource, /lenStoredLabel/u);
+  assert.match(persistenceControllerSource, /function updateStoredLengthControls\(\) \{\s*if \(isDfmDataTabHost\(\)\) return;/u);
   // Both are the shared length control, so they take the same list, lock and
   // tooltip treatment rather than a second implementation.
   assert.match(inputsControllerSource, /originStoredLenSelect: \{\s*wrapId: "originStoredLenWrap",/u);
   assert.match(inputsControllerSource, /devStoredLenSelect: \{\s*wrapId: "devStoredLenWrap",/u);
+});
+
+// Clearing a hand-entered dataset lets go of its file's period: the grid is
+// reshaped in place instead of reloaded, and values entered at the new shape
+// keep that shape until they are saved.
+
+test("a cleared dataset is reshaped in place and keeps the lengths its new values take", () => {
+  // The menu command that empties the grid, shown only while it is editable.
+  assert.match(datasetViewerViewSource, /data-action="clear_data">Clear data</u);
+  assert.match(gridInteractionsSource, /canClearData: \(\) => !isReadOnly\(\) && !!getDisplayDatasetModel\(\),/u);
+  assert.match(gridInteractionsSource, /if \(action === "clear_data"\) return clearAllCells\(\);/u);
+  // A length change on an all-zero dataset rebuilds the grid empty rather than
+  // running it, since the run would read the file's old values back.
+  assert.match(dataControlsSource, /return typeof refreshClearedDatasetModel === "function" && await refreshClearedDatasetModel\(\);/u);
+  assert.match(requestControllerSource, /async function refreshClearedDatasetModel\(\)/u);
+  assert.match(requestControllerSource, /\|\| !runtime\.datasetValuesAreAllZero\(\)\s*\) return false;/u);
+  assert.match(requestControllerSource, /runtime\.releaseStoredShape\(\);/u);
+  // The release is the lengths the grid was rebuilt at; it holds the length
+  // controls there once values exist, and the save carries it to the server.
+  assert.match(persistenceControllerSource, /function releaseStoredShape\(\) \{\s*releasedLengths = getCurrentLengthControlValues\(\);/u);
+  assert.match(persistenceControllerSource, /if \(releasedLengths\) \{\s*\/\/ Values entered since the clear/u);
+  assert.match(persistenceControllerSource, /\.\.\.\(releasedLengths \? \{ stored_values_cleared: true \} : \{\}\),/u);
+  // A fresh sidecar answer or a discard ends the release.
+  assert.match(persistenceControllerSource, /storedDevelopmentChoiceDisplay = 0;\s*releasedLengths = null;/u);
+  assert.match(persistenceControllerSource, /controller\.restoreSaved\(\)\);\s*\/\/[^\n]*\n\s*\/\/[^\n]*\n\s*releasedLengths = null;/u);
 });
 
 test("the origin store is read-only and the development store is live only while empty", () => {
@@ -502,7 +533,7 @@ test("the origin store is read-only and the development store is live only while
   // the one time ResQ allows it.
   assert.match(
     persistenceControllerSource,
-    /applyStoredLenControl\("devStoredLenSelect", \{[\s\S]*?enabled: pending && !vector && !isDfmDataTabHost\(\),/u,
+    /applyStoredLenControl\("devStoredLenSelect", \{[\s\S]*?enabled: pending && !vector,/u,
   );
   assert.match(persistenceControllerSource, /Stored at can be changed only while the dataset is empty\./u);
   // A control that cannot be changed is dimmed in place rather than removed, so
@@ -570,7 +601,47 @@ test("only a coarser origin view is read-only, and it names that axis", () => {
   assert.match(gridInteractionsSource, /readOnlyMessage = \(\) => "Generated datasets are read-only\.",/u);
   assert.doesNotMatch(runControllerSource, /setStatus\("Generated datasets are read-only\."\)/u);
   // The Links tab already inherits the same rule.
-  assert.match(persistenceControllerSource, /isDatasetReadOnly\(\) \|\| isDfmDataTabHost\(\)/u);
+  assert.match(
+    persistenceControllerSource,
+    /const linksControllerIsReadOnly = \(\) => \(\s*isDatasetReadOnly\(\)\s*\|\| isDfmDataTabHost\(\)/u,
+  );
+});
+
+test("a view off the stored shape holds the links still and says which length to put back", () => {
+  // A saved link names a cell of the file's own triangle, so nothing that
+  // speaks in grid coordinates may run against a coarser view: no cell is
+  // painted, named, released, checked, or refreshed there.
+  assert.match(
+    persistenceControllerSource,
+    /function datasetDisplayIsAtStoredShape\(\) \{\s*return !datasetOriginDisplayIsCoarserThanStored\(\)\s*&& !datasetDevelopmentDisplayIsCoarserThanStored\(\);/u,
+  );
+  // Both axes count, not only the one that locks the grid.
+  assert.match(persistenceControllerSource, /\|\| !datasetDisplayIsAtStoredShape\(\)/u);
+  // The opening check would otherwise report every stored link as broken. The
+  // shape is read after the length controls settle, not when the check was
+  // scheduled, and the key is recorded only once the check really runs, so the
+  // check still fires the first time the window comes back to the stored shape.
+  assert.match(
+    persistenceControllerSource,
+    /if \(!datasetDisplayIsAtStoredShape\(\)\) return;\s*datasetExcelLinkCheckedKeys\.add\(contextKey\);/u,
+  );
+  assert.match(persistenceControllerSource, /isAtStoredShape: datasetDisplayIsAtStoredShape,/u);
+  // In its place, every cell of a linked dataset carries one sentence naming
+  // the lengths to set back, worded the way the controls beside it are.
+  assert.match(
+    persistenceControllerSource,
+    /This dataset's cells are linked\. Set \$\{lengths\.join\(" and "\)\} to view or edit the formula\./u,
+  );
+  assert.match(persistenceControllerSource, /lengths\.push\(`Origin Length to \$\{stored\.origin_length\}`\)/u);
+  assert.match(persistenceControllerSource, /lengths\.push\(`Development Length to \$\{stored\.development_length\}`\)/u);
+  assert.match(
+    persistenceControllerSource,
+    /This dataset's cells are linked\. Set the length to \$\{stored\.origin_length\} to view or edit the formula\./u,
+  );
+  // The sentence reaches the grid as a formula-bar notice, never as a formula.
+  assert.match(dataTabControllerSource, /const note = offStoredShapeLinkNote\(\);/u);
+  assert.match(dataTabControllerSource, /return \{ note, anchorDisplayRow: displayRow, anchorDisplayColumn: displayColumn \};/u);
+  assert.match(gridInteractionsSource, /if \(info\?\.note\) \{\s*formulaHover\.attach\(cell, info, \{ key: `note:\$\{displayR\},\$\{displayC\}` \}\);/u);
 });
 
 test("a coarser development view is editable and says what a save there does", () => {

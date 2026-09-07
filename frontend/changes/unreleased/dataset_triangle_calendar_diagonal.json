@@ -1,0 +1,11 @@
+{
+  "type": "fix",
+  "scope": "dataset",
+  "audience": "user",
+  "summary": "A triangle's cells now stop on the project's own calendar diagonal, so cells past the valuation date can no longer be typed into.",
+  "details": [
+    "A new or cleared hand-entered triangle asks the project where its diagonal falls instead of dropping one column a row, which was only ever right when the origin and development lengths matched.",
+    "An annual triangle shown at a quarterly development now drops four columns a row and stops at the valuation date rather than at the last development header.",
+    "A figure an older file holds past the diagonal is no longer shown or editable, and the next save writes that cell blank. Vectors keep every cell."
+  ]
+}

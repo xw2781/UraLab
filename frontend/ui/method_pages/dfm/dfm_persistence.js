@@ -71,7 +71,7 @@ import {
   applyPersistedRatioDerivedSnapshot,
   renderRatioTable,
   queueDfmExternalChangeHighlights,
-} from "/ui/method_pages/dfm/dfm_ratios_tab.js?v=20260906a";
+} from "/ui/method_pages/dfm/dfm_ratios_tab.js?v=20260907a";
 import {
   applyPersistedResultsSnapshot,
   ensureResultsRatioBasisAligned,
@@ -83,13 +83,13 @@ import {
   getResultsUltimateRatioDecimalPlacesSelection,
   setResultsRatioBasisSelection,
   setResultsUltimateRatioDecimalPlacesSelection,
-} from "/ui/method_pages/dfm/dfm_results_tab.js?v=20260830a";
+} from "/ui/method_pages/dfm/dfm_results_tab.js?v=20260907a";
 import { getDfmNotesText, setDfmNotesText } from "/ui/method_pages/dfm/dfm_notes_tab.js?v=20260714a";
 import {
   applyDfmCurvesTabPayload,
   buildDfmCurvesTabPayload,
   renderDfmCurvesTab,
-} from "/ui/method_pages/dfm/dfm_curves_tab.js?v=20260903c";
+} from "/ui/method_pages/dfm/dfm_curves_tab.js?v=20260907a";
 import { getSummaryRowTailFactor } from "/ui/method_pages/dfm/dfm_state.js";
 import {
   buildDfmAverageFormulaObject,

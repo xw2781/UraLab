@@ -19,7 +19,7 @@ import {
   renderTable,
   setDatasetRenderNumberFormatSettings,
   setDatasetRenderVectorColumnLabel,
-} from "/ui/shared/tabs/data/dataset_grid_view.js?v=20260829b";
+} from "/ui/shared/tabs/data/dataset_grid_view.js?v=20260907c";
 import {
   beginDatasetGridLoading,
   endDatasetGridLoading,
@@ -37,13 +37,13 @@ import {
 import { createDatasetDependencyGuard } from "/ui/shared/dataset/dataset_dependency_service.js";
 import { createDatasetHeadersService } from "/ui/shared/dataset/dataset_headers_service.js";
 import { validateDatasetOriginLabels } from "/ui/shared/dataset/dataset_origin_labels.js";
-import { wireDatasetGridInteractions } from "/ui/shared/tabs/data/dataset_grid_interactions.js?v=20260905a";
+import { wireDatasetGridInteractions } from "/ui/shared/tabs/data/dataset_grid_interactions.js?v=20260907c";
 import { mountDataTabNotes } from "/ui/shared/tabs/data/data_tab_notes_port.js";
 import { publishDataTabHostInputs } from "/ui/shared/tabs/data/data_tab_host_port.js";
 import { wireDatasetHostBridge } from "/ui/shared/integrations/dataset_host_bridge.js";
 import { createDatasetRunController } from "/ui/shared/dataset/dataset_run_controller.js?v=20260906c";
 import { hasResultSelectionUpdates } from "/ui/shared/dataset/result_selection_update_report.js?v=20260725b";
-import { wireDatasetInputController } from "/ui/shared/tabs/data/data_tab_controls.js?v=20260906b";
+import { wireDatasetInputController } from "/ui/shared/tabs/data/data_tab_controls.js?v=20260907a";
 import { readDatasetInputQueryValues } from "/ui/shared/tabs/data/data_tab_query_inputs.js";
 import {
   applyDecimalPlacesToDatasetNumberFormat,
@@ -64,9 +64,9 @@ import { openDatasetNamePicker } from "/ui/shared/components/pickers/dataset_nam
 import { getDataTabAuditController } from "/ui/shared/tabs/data/data_tab_audit_port.js";
 import { getDataTabCloseConfirm } from "/ui/shared/tabs/data/data_tab_close_port.js";
 import { getDataTabLinksController } from "/ui/shared/tabs/data/data_tab_links_port.js";
-import { createDatasetExternalLinksController } from "/ui/shared/dataset/dataset_external_links.js?v=20260830d";
-import { createDatasetInternalLinksController } from "/ui/shared/dataset/dataset_internal_links.js?v=20260830d";
-import { createDatasetFormulaLinksController } from "/ui/shared/dataset/dataset_formula_links.js?v=20260830f";
+import { createDatasetExternalLinksController } from "/ui/shared/dataset/dataset_external_links.js?v=20260907a";
+import { createDatasetInternalLinksController } from "/ui/shared/dataset/dataset_internal_links.js?v=20260907a";
+import { createDatasetFormulaLinksController } from "/ui/shared/dataset/dataset_formula_links.js?v=20260907a";
 import {
   loadProjectUserPreferences,
   scheduleProjectUserPreferencesSave,
@@ -94,8 +94,8 @@ import { registerDataTabHostController } from "/ui/shared/tabs/data/data_tab_hos
 import { registerDataTabDetailsController } from "/ui/shared/tabs/data/data_tab_details_controller.js?v=20260824b";
 import { registerDataTabInputsController } from "/ui/shared/tabs/data/data_tab_inputs_controller.js?v=20260906b";
 import { registerDataTabPreferencesController } from "/ui/shared/tabs/data/data_tab_preferences_controller.js?v=20260906c";
-import { registerDataTabRequestController } from "/ui/shared/tabs/data/data_tab_request_controller.js?v=20260906b";
-import { registerDataTabPersistenceController } from "/ui/shared/tabs/data/data_tab_persistence_controller.js?v=20260906c";
+import { registerDataTabRequestController } from "/ui/shared/tabs/data/data_tab_request_controller.js?v=20260907b";
+import { registerDataTabPersistenceController } from "/ui/shared/tabs/data/data_tab_persistence_controller.js?v=20260907b";
 
 const LS_DS_KEY = "arcrho_last_ds_id";
 const LS_FORM_KEY = "arcrho_tri_inputs";
@@ -407,6 +407,23 @@ async function openDatasetNameTreeForDataset(targetInput) {
   });
 }
 
+// The sentence a linked cell shows in place of its formula while the window is
+// off the shape the file is stored at, or "" whenever there is nothing to
+// explain — the display is on the stored shape, or this dataset has no links.
+function offStoredShapeLinkNote() {
+  if (runtime.datasetDisplayIsAtStoredShape()) return "";
+  const hasLinks = linkControllersHaveLinks();
+  return hasLinks ? runtime.datasetOffStoredShapeLinkHint() : "";
+}
+
+function linkControllersHaveLinks() {
+  return !!(
+    runtime.datasetExternalLinks?.hasLinks()
+    || runtime.datasetInternalLinks?.hasLinks()
+    || runtime.datasetFormulaLinks?.hasLinks()
+  );
+}
+
 function wireGridInteractions() {
   if (datasetGridInteractions) return;
   const dfmLinksRefused = () => Promise.resolve({
@@ -458,12 +475,17 @@ function wireGridInteractions() {
       linkControllers().forEach((controller) => controller.decorateCell(cell, displayRow, displayColumn));
     },
     // A cell holds at most one link (Excel, ArcRho, or formula), enforced on
-    // commit and save, so the first answer wins here.
-    getExternalLinkCellInfo: (displayRow, displayColumn) => (
-      runtime.datasetFormulaLinks.getCellLinkInfo(displayRow, displayColumn)
-      || runtime.datasetInternalLinks.getCellLinkInfo(displayRow, displayColumn)
-      || runtime.datasetExternalLinks.getCellLinkInfo(displayRow, displayColumn)
-    ),
+    // commit and save, so the first answer wins here. While the window shows
+    // the dataset at a coarser period than the file is stored at, no cell on
+    // screen is one a link names, so every cell of a linked dataset answers
+    // with the note that says which length to put back instead.
+    getExternalLinkCellInfo: (displayRow, displayColumn) => {
+      const note = offStoredShapeLinkNote();
+      if (note) return { note, anchorDisplayRow: displayRow, anchorDisplayColumn: displayColumn };
+      return runtime.datasetFormulaLinks.getCellLinkInfo(displayRow, displayColumn)
+        || runtime.datasetInternalLinks.getCellLinkInfo(displayRow, displayColumn)
+        || runtime.datasetExternalLinks.getCellLinkInfo(displayRow, displayColumn);
+    },
     beginReferencePick: () => runtime.publishDatasetReferencePickBegin?.(),
     endReferencePick: () => runtime.publishDatasetReferencePickEnd?.(),
     publishReferencePick: (range) => runtime.publishDatasetReferencePick?.(range),

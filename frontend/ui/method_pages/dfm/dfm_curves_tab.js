@@ -38,7 +38,7 @@ import {
 import {
   renderResultsTable,
   invalidatePersistedResultsDerivations,
-} from "/ui/method_pages/dfm/dfm_results_tab.js?v=20260830a";
+} from "/ui/method_pages/dfm/dfm_results_tab.js?v=20260907a";
 import { openContextMenu } from "/ui/shared/components/context_menu/context_menu.js?v=20260811b";
 
 const FIT_LABELS = Object.freeze({

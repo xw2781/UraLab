@@ -40,6 +40,15 @@ const datasetFormulaUrl = dataUrl((await readFile(
   .replace('"/ui/shared/integrations/excel_reference.js?v=20260715a"', JSON.stringify(dataUrl(referenceSource)))
   .replace('"/ui/shared/dataset/dataset_internal_reference.js?v=20260830a"', JSON.stringify(internalReferenceUrl)));
 
+// The read-only refusal opens a page message box; record what it was told.
+const messageBoxStubUrl = dataUrl(`
+  export function showPageMessageBox(options) {
+    globalThis.__arTestMessageBoxes = globalThis.__arTestMessageBoxes || [];
+    globalThis.__arTestMessageBoxes.push(options);
+    return Promise.resolve();
+  }
+`);
+
 const interactionSource = (await readFile(
   new URL("../ui/shared/tabs/data/dataset_grid_interactions.js", import.meta.url),
   "utf8",
@@ -49,7 +58,7 @@ const interactionSource = (await readFile(
     JSON.stringify(spreadsheetStubUrl),
   )
   .replace(
-    '"/ui/shared/tabs/data/dataset_grid_view.js?v=20260829b"',
+    '"/ui/shared/tabs/data/dataset_grid_view.js?v=20260907c"',
     JSON.stringify(viewStubUrl),
   )
   .replace(
@@ -57,7 +66,7 @@ const interactionSource = (await readFile(
     JSON.stringify(dataUrl(referenceSource)),
   )
   .replace(
-    '"/ui/shared/components/formula_hover/formula_hover.js?v=20260902b"',
+    '"/ui/shared/components/formula_hover/formula_hover.js?v=20260907a"',
     JSON.stringify(formulaHoverStubUrl),
   )
   .replace(
@@ -67,6 +76,10 @@ const interactionSource = (await readFile(
   .replace(
     '"/ui/shared/dataset/dataset_formula.js?v=20260830a"',
     JSON.stringify(datasetFormulaUrl),
+  )
+  .replace(
+    '"/ui/shared/components/message_box/message_box.js?v=20260831a"',
+    JSON.stringify(messageBoxStubUrl),
   );
 const interactions = await import(dataUrl(interactionSource));
 
@@ -107,6 +120,7 @@ function setup({ isReadOnly } = {}) {
   };
   globalThis.__arTestDisplayModel = state.model;
   const calls = { renders: 0, updates: 0, statuses: [] };
+  globalThis.__arTestMessageBoxes = [];
   interactions.wireDatasetGridInteractions({
     state,
     renderTable: () => { calls.renders += 1; },
@@ -209,13 +223,45 @@ test("a single selected cell still opens the inline editor instead of filling", 
   }
 });
 
-test("a read-only dataset refuses a typed range fill", () => {
+test("a read-only dataset refuses a typed range fill and says so in the window", () => {
   const context = setup({ isReadOnly: () => true });
   try {
     context.type("2");
 
     assert.deepEqual(context.state.model.values, [[1, 2], [3, 4]]);
-    assert.equal(context.calls.statuses.at(-1), "Generated datasets are read-only.");
+    // The reason belongs in the window the reader is looking at, not on the
+    // shell's status line below every page.
+    assert.deepEqual(context.calls.statuses, []);
+    const box = globalThis.__arTestMessageBoxes.at(-1);
+    assert.equal(box.message, "Generated datasets are read-only.");
+    assert.equal(box.title, "Read-only view");
+  } finally {
+    context.cleanup();
+  }
+});
+
+test("Clear data sets every cell the grid shows to 0, whatever is selected", async () => {
+  const context = setup();
+  try {
+    context.state.selRanges = [{ r0: 0, c0: 0, r1: 0, c1: 0 }];
+    const config = globalThis.__arTestGridEditConfig;
+    assert.equal(config.canClearData(), true);
+
+    await config.onContextAction("clear_data");
+
+    // The masked cell is not part of the grid, so it is left alone.
+    assert.deepEqual(context.state.model.values, [[0, 0], [0, 4]]);
+    assert.equal(context.state.dirty.size, 3);
+    assert.equal(context.calls.statuses.at(-1), "Set 3 cells to 0.");
+  } finally {
+    context.cleanup();
+  }
+});
+
+test("a read-only dataset offers no Clear data", () => {
+  const context = setup({ isReadOnly: () => true });
+  try {
+    assert.equal(globalThis.__arTestGridEditConfig.canClearData(), false);
   } finally {
     context.cleanup();
   }

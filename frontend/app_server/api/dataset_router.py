@@ -103,6 +103,29 @@ def create_empty_cached_dataset(req: EmptyDatasetCacheCreateRequest) -> Dict[str
     )
 
 
+@router.get("/datasets/triangle-shape")
+def get_triangle_grid_shape(
+    project_name: str,
+    origin_length: int,
+    development_length: int,
+) -> Dict[str, Any]:
+    # One General Settings read, hosted with the rest of the dataset reads so a
+    # Client PC pays an HTTP round trip rather than an SMB visit for it.
+    return workspace_read_client.run_workspace_read(
+        "triangle_grid_shape",
+        {
+            "project_name": project_name,
+            "origin_length": origin_length,
+            "development_length": development_length,
+        },
+        local=lambda: dataset_service.triangle_grid_shape(
+            project_name,
+            origin_length,
+            development_length,
+        ),
+    )
+
+
 @router.get("/dataset/{ds_id}")
 def get_dataset(ds_id: str, project_name: str, origin_length: int) -> Dict[str, Any]:
     def load_locally() -> Dict[str, Any] | None:
@@ -248,6 +271,7 @@ def _dataset_sidecar_save_call(req: DatasetSidecarSaveRequest) -> Dict[str, Any]
             "origin_length": req.origin_length,
             "development_length": req.development_length,
             "stored_development_length": req.stored_development_length,
+            "stored_values_cleared": req.stored_values_cleared,
             "cumulative": req.cumulative,
             "transposed": req.transposed,
             "calendar": req.calendar,

@@ -20,7 +20,7 @@ import {
   buildDatasetExternalLinkTargets,
   buildDatasetLinkOutline,
   describeTargetDestination,
-} from "/ui/shared/dataset/dataset_external_links.js?v=20260830d";
+} from "/ui/shared/dataset/dataset_external_links.js?v=20260907a";
 import {
   formatInternalDatasetReference,
   parseInternalDatasetReference,
@@ -145,6 +145,7 @@ export function createDatasetInternalLinksController({
   resolveReferences,
   isReadOnly = () => false,
   isTransposed = () => false,
+  isAtStoredShape = () => true,
   onInventoryChanged = () => {},
   onTargetsClaimed = () => {},
 } = {}) {
@@ -259,12 +260,17 @@ export function createDatasetInternalLinksController({
     return removed;
   }
 
+  // A saved link names a cell of the file's own triangle. While the window is
+  // showing that triangle at a coarser period, every cell on screen stands for
+  // several stored ones, so there is no square to paint, name, or release: the
+  // whole inventory stands still and comes back when the lengths do.
   function hardCodeTargetCells(targetCells) {
+    if (!isAtStoredShape()) return 0;
     return removeLinkIndexes(linksForTargetCells(targetCells));
   }
 
   function getCellLinkInfo(displayRow, displayColumn) {
-    if (!state?.model) return null;
+    if (!state?.model || !isAtStoredShape()) return null;
     const actual = displayToActualCell(displayRow, displayColumn, !!isTransposed());
     const decoration = getTargetDecorationIndex().targets.get(targetCellKey(actual));
     const link = decoration?.link;
@@ -283,7 +289,7 @@ export function createDatasetInternalLinksController({
   }
 
   function decorateCell(cell, displayRow, displayColumn) {
-    if (!cell || !state?.model) return;
+    if (!cell || !state?.model || !isAtStoredShape()) return;
     const actual = displayToActualCell(displayRow, displayColumn, !!isTransposed());
     const key = targetCellKey(actual);
     const index = getTargetDecorationIndex();
@@ -303,7 +309,11 @@ export function createDatasetInternalLinksController({
     }
   }
 
+  // The Value and Destination columns are read off the grid on screen. A
+  // coarser view is not the grid the link points into, so they are left blank
+  // rather than quoting a number and a period the link never named.
   function listRecords() {
+    const atStoredShape = !!isAtStoredShape();
     return links.map((link) => {
       const targets = link.target_cells;
       return {
@@ -311,8 +321,8 @@ export function createDatasetInternalLinksController({
         datasetName: referenceDatasetName(link.reference),
         sourceRange: referenceCoordinateText(link.reference),
         reference: link.reference,
-        value: targetValuePreview(state?.model, targets, targets.length > 1),
-        destination: describeTargetDestination(state?.model, targets) || "Data",
+        value: atStoredShape ? targetValuePreview(state?.model, targets, targets.length > 1) : "",
+        destination: (atStoredShape ? describeTargetDestination(state?.model, targets) : "") || "Data",
         affectedCellCount: targets.length,
         readOnly: !!isReadOnly(),
       };
@@ -545,6 +555,13 @@ export function createDatasetInternalLinksController({
     return breakLinks([id]);
   }
 
+  // Whether the dataset holds any link at all, whatever the window is
+  // showing. The Data tab asks this to decide whether a view that cannot
+  // paint links has any to explain away.
+  function hasLinks() {
+    return links.length > 0;
+  }
+
   return {
     abort,
     breakLink,
@@ -552,6 +569,7 @@ export function createDatasetInternalLinksController({
     clear,
     commitReference,
     decorateCell,
+    hasLinks,
     hardCodeTargetCells,
     getCellLinkInfo,
     getLinkFailures: listFailures,

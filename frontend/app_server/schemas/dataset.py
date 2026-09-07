@@ -169,6 +169,10 @@ class DatasetSidecarSaveRequest(BaseModel):
     # The months per period the CSV is written at, when the caller asks for a
     # store finer than the display. Omitted, the store follows the display.
     stored_development_length: Optional[int] = Field(None, ge=1)
+    # The client set every value to 0 and reshaped the grid before entering
+    # the values it sends, so they replace the file outright: the values the
+    # old file still holds no longer fix the stored shape.
+    stored_values_cleared: bool = False
     cumulative: bool = True
     transposed: bool = False
     calendar: bool = False

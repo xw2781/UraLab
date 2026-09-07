@@ -22,6 +22,10 @@ export function registerDataTabPersistenceController(runtime) {
   let notesContextKey = "", notesContextPayload = null, notesDirty = false, lastSavedNotesText = "", datasetNotesController = null, datasetSettingsDirty = false, sidecarContextKey = "", sidecarContextPayload = null, lastSavedDatasetSettings = null, sidecarSyncNonce = 0, datasetExternalLinksLoaded = false, datasetCloseConfirm = null, hostInputsPublished = false;
   let datasetExcelLinkCheckAbortController = null;
   let storedDevelopmentChoice = 0, storedDevelopmentChoiceDisplay = 0;
+  // The lengths a cleared hand-entered dataset was reshaped to, or null while
+  // the window still shows the shape of the dataset's own file. See
+  // releaseStoredShape.
+  let releasedLengths = null;
   const datasetExcelLinkCheckedKeys = new Set();
   const {
     loadTemporaryNumberFormatSettings,
@@ -72,7 +76,12 @@ export function registerDataTabPersistenceController(runtime) {
     isNotesDirty: () => notesDirty,
   });
   const linksControllerIsReadOnly = () => (
-    isDatasetReadOnly() || isDfmDataTabHost() || !currentDatasetIsManualTriangleOrVector()
+    isDatasetReadOnly()
+    || isDfmDataTabHost()
+    || !currentDatasetIsManualTriangleOrVector()
+    // A link entered or broken here would be filed against the cells of a
+    // coarser view, which are not the cells the file holds.
+    || !datasetDisplayIsAtStoredShape()
   );
   const linksControllerIsTransposed = () => document.getElementById("transposedChk")?.checked === true;
   const notifyLinksInventoryChanged = () => {
@@ -96,6 +105,7 @@ export function registerDataTabPersistenceController(runtime) {
     state,
     isReadOnly: linksControllerIsReadOnly,
     isTransposed: linksControllerIsTransposed,
+    isAtStoredShape: datasetDisplayIsAtStoredShape,
     onInventoryChanged: notifyLinksInventoryChanged,
     onTargetsClaimed: releaseClaimedCells("datasetExternalLinks"),
   });
@@ -104,6 +114,7 @@ export function registerDataTabPersistenceController(runtime) {
     resolveReferences,
     isReadOnly: linksControllerIsReadOnly,
     isTransposed: linksControllerIsTransposed,
+    isAtStoredShape: datasetDisplayIsAtStoredShape,
     onInventoryChanged: notifyLinksInventoryChanged,
     onTargetsClaimed: releaseClaimedCells("datasetInternalLinks"),
   });
@@ -112,6 +123,7 @@ export function registerDataTabPersistenceController(runtime) {
     resolveReferences,
     isReadOnly: linksControllerIsReadOnly,
     isTransposed: linksControllerIsTransposed,
+    isAtStoredShape: datasetDisplayIsAtStoredShape,
     onInventoryChanged: notifyLinksInventoryChanged,
     onTargetsClaimed: releaseClaimedCells("datasetFormulaLinks"),
   });
@@ -275,9 +287,10 @@ export function registerDataTabPersistenceController(runtime) {
     runtime.currentDatasetStoredOriginLength = Number(source.stored_origin_length) || 0;
     runtime.currentDatasetStoredDevelopmentLength = Number(source.stored_development_length) || 0;
     // Whatever the sidecar now says is the answer, so any store the user had
-    // asked for and not yet saved is spent.
+    // asked for and not yet saved is spent, and so is a clear-and-reshape.
     storedDevelopmentChoice = 0;
     storedDevelopmentChoiceDisplay = 0;
+    releasedLengths = null;
   }
 
   function getStoredLengthPair() {
@@ -291,9 +304,20 @@ export function registerDataTabPersistenceController(runtime) {
 
   // A hand-entered dataset that still holds nothing has no stored period worth
   // keeping: the next save fixes it at whatever the length controls read, so
-  // the whole ladder stays open and the readout says so.
+  // the whole ladder stays open and the readout says so. A dataset cleared and
+  // then reshaped stays in that state once values are entered again, because
+  // the shape those values sit at is the one the next save stores.
   function storedLengthIsPending() {
-    return currentDatasetIsManualTriangleOrVector() && datasetValuesAreAllZero();
+    return currentDatasetIsManualTriangleOrVector() && (datasetValuesAreAllZero() || releasedLengths !== null);
+  }
+
+  // Once every value of a hand-entered dataset is 0 and a length control
+  // moves, the file's stored period no longer binds the window: the grid is
+  // rebuilt empty at the new lengths instead of reloaded from the file, and
+  // the save says the old values were cleared, so the server writes a new
+  // file at the shape the entered values have.
+  function releaseStoredShape() {
+    releasedLengths = getCurrentLengthControlValues();
   }
 
   // ResQ lets an empty triangle be stored finer than it is shown, and moves the
@@ -399,6 +423,33 @@ export function registerDataTabPersistenceController(runtime) {
     return stored.development_length > 0 && current.development_length > stored.development_length;
   }
 
+  // The display sits on the shape the file is held at when neither axis has
+  // been coarsened. Only there does a saved link name a square the grid has:
+  // every cell of a coarser view stands for several stored ones, so a link
+  // read, checked, painted, or refreshed against it would land on the wrong
+  // cell. The whole link inventory therefore stands still until the lengths
+  // come back.
+  function datasetDisplayIsAtStoredShape() {
+    return !datasetOriginDisplayIsCoarserThanStored()
+      && !datasetDevelopmentDisplayIsCoarserThanStored();
+  }
+
+  // What the formula bar says on a linked dataset that is being viewed away
+  // from its stored shape: which length to put back, named the way the control
+  // beside it is labelled.
+  function datasetOffStoredShapeLinkHint() {
+    if (datasetDisplayIsAtStoredShape()) return "";
+    const stored = getStoredLengthPair();
+    if (currentDatasetIsVector()) {
+      return `This dataset's cells are linked. Set the length to ${stored.origin_length} to view or edit the formula.`;
+    }
+    const lengths = [];
+    if (datasetOriginDisplayIsCoarserThanStored()) lengths.push(`Origin Length to ${stored.origin_length}`);
+    if (datasetDevelopmentDisplayIsCoarserThanStored()) lengths.push(`Development Length to ${stored.development_length}`);
+    if (!lengths.length) return "";
+    return `This dataset's cells are linked. Set ${lengths.join(" and ")} to view or edit the formula.`;
+  }
+
   function datasetCoarserViewMessage() {
     const stored = getStoredLengthPair();
     if (currentDatasetIsVector()) {
@@ -445,8 +496,10 @@ export function registerDataTabPersistenceController(runtime) {
   // The origin one is never editable: as in ResQ, the Origin Length control
   // fixes the origin store while the dataset is empty. The development one is
   // live only while the dataset holds no value, which is the only time ResQ
-  // allows the store to move.
+  // allows the store to move. The DFM Data tab has neither control: it does
+  // not save the dataset sidecar.
   function updateStoredLengthControls() {
+    if (isDfmDataTabHost()) return;
     const pending = storedLengthIsPending();
     const vector = currentDatasetIsVector();
     const display = getCurrentLengthControlValues();
@@ -461,7 +514,7 @@ export function registerDataTabPersistenceController(runtime) {
     applyStoredLenControl("devStoredLenSelect", {
       displayLength: display.development_length,
       value: stored.development_length,
-      enabled: pending && !vector && !isDfmDataTabHost(),
+      enabled: pending && !vector,
       reason: vector ? VECTOR_NO_DEVELOPMENT_REASON : STORED_DEVELOPMENT_LOCK_REASON,
       // A vector has no development dimension, so its store reads 0 beside the
       // 0 its Development Length already shows.
@@ -472,16 +525,30 @@ export function registerDataTabPersistenceController(runtime) {
   function validateManualDatasetLengthChange() {
     if (!currentDatasetIsManualTriangleOrVector()) return true;
     if (datasetValuesAreAllZero()) return true;
-    const baseline = getManualDatasetLengthBaseline();
     const current = getCurrentLengthControlValues();
+    if (releasedLengths) {
+      // Values entered since the clear have no file yet, so there is nothing
+      // to show them at another period from until they are saved.
+      if (current.origin_length === releasedLengths.origin_length && current.development_length === releasedLengths.development_length) {
+        return true;
+      }
+      restoreLengthControls(releasedLengths);
+      setStatus(`The values entered since the data was cleared are not saved yet, so the lengths stay at Origin ${releasedLengths.origin_length}, Development ${releasedLengths.development_length}. Save them, or set all values to 0, before changing the lengths.`);
+      return false;
+    }
+    const baseline = getManualDatasetLengthBaseline();
     if (current.origin_length >= baseline.origin_length && current.development_length >= baseline.development_length) {
       return true;
     }
-    setLenSelectValue("originLenSelect", String(baseline.origin_length));
-    setLenSelectValue("devLenSelect", String(baseline.development_length));
-    refreshLenDropdowns();
+    restoreLengthControls(baseline);
     setStatus(`Manual input datasets with non-zero values cannot be shown below the period their values are stored at (Origin ${baseline.origin_length}, Development ${baseline.development_length}). Set all values to 0 before changing to a lower level.`);
     return false;
+  }
+
+  function restoreLengthControls(lengths) {
+    setLenSelectValue("originLenSelect", String(lengths.origin_length));
+    setLenSelectValue("devLenSelect", String(lengths.development_length));
+    refreshLenDropdowns();
   }
 
   function updateManualDatasetModeControls() {
@@ -642,9 +709,16 @@ export function registerDataTabPersistenceController(runtime) {
       || datasetExcelLinkCheckedKeys.has(contextKey)
       || !datasetExternalLinksLoaded
     ) return;
-    datasetExcelLinkCheckedKeys.add(contextKey);
     window.setTimeout(async () => {
       if (!isCurrent()) return;
+      // A coarser view holds none of the cells the saved links name, so every
+      // one of them would report itself broken. The shape is read here rather
+      // than when the check was scheduled, because the length controls settle
+      // after the sidecar answers; and nothing is recorded against the key
+      // while it is skipped, so the check still runs the first time the window
+      // comes back to the stored shape.
+      if (!datasetDisplayIsAtStoredShape()) return;
+      datasetExcelLinkCheckedKeys.add(contextKey);
       datasetExcelLinkCheckAbortController?.abort();
       const abortController = new AbortController();
       datasetExcelLinkCheckAbortController = abortController;
@@ -700,6 +774,7 @@ export function registerDataTabPersistenceController(runtime) {
     if (
       isDfmDataTabHost()
       || !datasetExternalLinksLoaded
+      || !datasetDisplayIsAtStoredShape()
       || !state.model
       || !currentDatasetIsManualTriangleOrVector()
       || !isCurrent()
@@ -758,6 +833,7 @@ export function registerDataTabPersistenceController(runtime) {
     if (
       isDfmDataTabHost()
       || !datasetExternalLinksLoaded
+      || !datasetDisplayIsAtStoredShape()
       || !state.model
       || !currentDatasetIsManualTriangleOrVector()
       || !isCurrent()
@@ -966,6 +1042,9 @@ export function registerDataTabPersistenceController(runtime) {
       // The period the CSV is written at. Stated only while a hand-entered
       // dataset is still empty, which is the one time it can move.
       stored_development_length: storedDevelopmentLengthForSave() || null,
+      // The file's old values were set to 0 and the shape moved since, so the
+      // server writes a new file at this shape instead of holding the old one.
+      ...(releasedLengths ? { stored_values_cleared: true } : {}),
       notes: String(getNotesEditorElements().input?.value ?? ""),
       ...getManualInputDatasetValuePayload(),
       ...getDatasetExternalLinksPayload(),
@@ -1087,6 +1166,9 @@ export function registerDataTabPersistenceController(runtime) {
   async function discardDatasetChanges(options = {}) {
     const reload = options?.reload !== false;
     forEachLinksController((controller) => controller.restoreSaved());
+    // A clear-and-reshape is discarded with the rest, so the file's own shape
+    // binds the length controls again.
+    releasedLengths = null;
     if (lastSavedDatasetSettings) {
       applyDatasetSettingsToControls(lastSavedDatasetSettings);
       saveTriInputsToStorage();
@@ -1433,6 +1515,7 @@ export function registerDataTabPersistenceController(runtime) {
     getCurrentLengthControlValues,
     getStoredLengthPair,
     storedLengthIsPending,
+    releaseStoredShape,
     chooseStoredDevelopmentLength,
     getStoredDevelopmentLengthChoice,
     getStoredLengthControlPair,
@@ -1441,6 +1524,8 @@ export function registerDataTabPersistenceController(runtime) {
     updateStoredLengthControls,
     datasetOriginDisplayIsCoarserThanStored,
     datasetDevelopmentDisplayIsCoarserThanStored,
+    datasetDisplayIsAtStoredShape,
+    datasetOffStoredShapeLinkHint,
     datasetCoarserViewMessage,
     datasetCoarseDevelopmentNote,
     validateManualDatasetLengthChange,

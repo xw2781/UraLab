@@ -7,15 +7,16 @@ import {
   getDatasetGridSelectionLayout,
   getDisplayDatasetModel,
   setDatasetGridEditConfig,
-} from "/ui/shared/tabs/data/dataset_grid_view.js?v=20260829b";
+} from "/ui/shared/tabs/data/dataset_grid_view.js?v=20260907c";
 import { parseExcelReference } from "/ui/shared/integrations/excel_reference.js?v=20260715a";
-import { createFormulaHoverEditor } from "/ui/shared/components/formula_hover/formula_hover.js?v=20260902b";
+import { createFormulaHoverEditor } from "/ui/shared/components/formula_hover/formula_hover.js?v=20260907a";
 import {
   buildInternalDatasetReferenceText,
   insertPickedDatasetReference,
   isInternalReferencePickDraft,
 } from "/ui/shared/dataset/dataset_internal_reference.js?v=20260830a";
 import { classifyDatasetFormula } from "/ui/shared/dataset/dataset_formula.js?v=20260830a";
+import { showPageMessageBox } from "/ui/shared/components/message_box/message_box.js?v=20260831a";
 
 export function wireDatasetGridInteractions(deps) {
   const {
@@ -23,6 +24,11 @@ export function wireDatasetGridInteractions(deps) {
     renderTable,
     isReadOnly = () => false,
     readOnlyMessage = () => "Generated datasets are read-only.",
+    showReadOnlyNotice = (message) => showPageMessageBox({
+      title: "Read-only view",
+      message,
+      tone: "warn",
+    }),
     setStatus = () => {},
     notifyDatasetUpdated = () => {},
     refreshDatasetSettingsDirty = () => {},
@@ -56,6 +62,29 @@ export function wireDatasetGridInteractions(deps) {
   // applies it can be skipped entirely on the ordinary selection changes that
   // have nothing to do with a pick.
   let referencePickDecorated = false;
+  // Whether a refusal is already on screen. A locked grid refuses every
+  // keystroke of a typed number, and the reader has to be told only once.
+  let readOnlyNoticeOpen = false;
+
+  // Why an edit was refused belongs in the window the reader is looking at:
+  // the status line lives in the shell, below every page, where a notice about
+  // this grid is easily missed.
+  function reportReadOnlyRefusal() {
+    const message = readOnlyMessage();
+    if (readOnlyNoticeOpen) return message;
+    readOnlyNoticeOpen = true;
+    try {
+      void Promise.resolve(showReadOnlyNotice(message))
+        .catch(() => setStatus(message))
+        .finally(() => {
+          readOnlyNoticeOpen = false;
+        });
+    } catch {
+      readOnlyNoticeOpen = false;
+      setStatus(message);
+    }
+    return message;
+  }
 
   const formulaHover = createFormulaHoverEditor({
     onCommit: commitHoveredExternalFormula,
@@ -189,6 +218,7 @@ export function wireDatasetGridInteractions(deps) {
     },
     onCellContextMenu: (displayR, displayC) => prepareContextSelection(displayR, displayC),
     canPasteSelection: () => hasEditableSelectionTarget(),
+    canClearData: () => !isReadOnly() && !!getDisplayDatasetModel(),
     onContextAction: (action) => handleGridContextAction(action),
     onTableRendered: () => {
       formulaHover.hide?.();
@@ -197,6 +227,15 @@ export function wireDatasetGridInteractions(deps) {
     decorateCell: (cell, displayR, displayC) => {
       decorateExternalLinkCell(cell, displayR, displayC);
       const info = getExternalLinkCellInfo(displayR, displayC);
+      // A notice stands in for the formula on every cell of a linked dataset
+      // that is being shown at a coarser period than it is stored at. It sits
+      // on the cell under the pointer, since no cell here is the one the link
+      // names, and it is keyed by that cell so the bar still behaves as a
+      // per-cell control.
+      if (info?.note) {
+        formulaHover.attach(cell, info, { key: `note:${displayR},${displayC}` });
+        return;
+      }
       if (!info?.reference) return;
       formulaHover.attach(cell, {
         ...info,
@@ -447,8 +486,7 @@ export function wireDatasetGridInteractions(deps) {
 
   async function commitHoveredExternalFormula({ formula, context }) {
     if (isReadOnly()) {
-      const error = readOnlyMessage();
-      setStatus(error);
+      const error = reportReadOnlyRefusal();
       return { ok: false, error };
     }
     const displayRow = Number(context?.anchorDisplayRow);
@@ -482,7 +520,7 @@ export function wireDatasetGridInteractions(deps) {
 
   function canEditDisplayCell(displayR, displayC, options = {}) {
     if (isReadOnly()) {
-      if (!options?.silent) setStatus(readOnlyMessage());
+      if (!options?.silent) reportReadOnlyRefusal();
       return null;
     }
     const model = getDisplayDatasetModel();
@@ -558,12 +596,11 @@ export function wireDatasetGridInteractions(deps) {
     return [normalizeRange(state.activeCell.r, state.activeCell.c, state.activeCell.r, state.activeCell.c)];
   }
 
-  function fillSelectedCells(value, describe) {
+  function fillCells(ranges, value, describe) {
     if (isReadOnly()) {
-      setStatus(readOnlyMessage());
+      reportReadOnlyRefusal();
       return 0;
     }
-    const ranges = selectedRanges();
     if (!ranges.length) return 0;
 
     const seen = new Set();
@@ -592,8 +629,27 @@ export function wireDatasetGridInteractions(deps) {
     return applied;
   }
 
+  function fillSelectedCells(value, describe) {
+    return fillCells(selectedRanges(), value, describe);
+  }
+
+  function describeZeroed(applied) {
+    return `Set ${applied} cell${applied === 1 ? "" : "s"} to 0.`;
+  }
+
   function zeroSelectedCells() {
-    return fillSelectedCells(0, (applied) => `Set ${applied} cell${applied === 1 ? "" : "s"} to 0.`);
+    return fillSelectedCells(0, describeZeroed);
+  }
+
+  // `Clear data` on the context menu: every cell the grid shows goes to 0,
+  // which is what lets the length controls open up again on a hand-entered
+  // dataset.
+  function clearAllCells() {
+    const model = getDisplayDatasetModel();
+    const rows = model?.origin_labels?.length || 0;
+    const cols = model?.dev_labels?.length || 0;
+    const ranges = rows && cols ? [normalizeRange(0, 0, rows - 1, cols - 1)] : [];
+    return fillCells(ranges, 0, describeZeroed);
   }
 
   function selectionSignature() {
@@ -650,7 +706,7 @@ export function wireDatasetGridInteractions(deps) {
 
   function applyPastedGridText(text, start) {
     if (isReadOnly()) {
-      setStatus(readOnlyMessage());
+      reportReadOnlyRefusal();
       return 0;
     }
     const model = getDisplayDatasetModel();
@@ -910,6 +966,7 @@ export function wireDatasetGridInteractions(deps) {
 
   async function handleGridContextAction(action) {
     if (action === "paste") return pasteSelectionFromClipboard();
+    if (action === "clear_data") return clearAllCells();
     if (action === "toggle_subtotal") {
       state.showSubtotal = state.showSubtotal === false;
       state.activeCell = null;
@@ -1066,8 +1123,14 @@ export function wireDatasetGridInteractions(deps) {
         const cell = getPrimaryEditCell();
         if (!cell) return;
         const info = getExternalLinkCellInfo(cell.r, cell.c);
-        if (!info?.reference) return;
+        if (!info?.reference && !info?.note) return;
         const hoveredCell = document.querySelector(`#tableWrap td[data-r="${cell.r}"][data-c="${cell.c}"]`);
+        if (info.note) {
+          if (!hoveredCell) return;
+          e.preventDefault();
+          formulaHover.open(hoveredCell, info, { key: `note:${cell.r},${cell.c}` });
+          return;
+        }
         const anchor = resolveExternalFormulaAnchor(info, hoveredCell);
         if (!anchor) return;
         e.preventDefault();
@@ -1111,7 +1174,7 @@ export function wireDatasetGridInteractions(deps) {
     document.addEventListener("paste", (e) => {
       if (isTypingTarget(e.target)) return;
       if (isReadOnly()) {
-        setStatus(readOnlyMessage());
+        reportReadOnlyRefusal();
         return;
       }
       const text = String(e.clipboardData?.getData("text/plain") || "");

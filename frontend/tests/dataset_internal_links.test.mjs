@@ -31,7 +31,7 @@ let controllerSource = await readFile(
   "utf8",
 );
 controllerSource = controllerSource
-  .replace('"/ui/shared/dataset/dataset_external_links.js?v=20260830d"', JSON.stringify(externalUrl))
+  .replace('"/ui/shared/dataset/dataset_external_links.js?v=20260907a"', JSON.stringify(externalUrl))
   .replace('"/ui/shared/dataset/dataset_internal_reference.js?v=20260830a"', JSON.stringify(internalReferenceUrl));
 const internalLinks = await import(
   `data:text/javascript;base64,${Buffer.from(controllerSource).toString("base64")}`

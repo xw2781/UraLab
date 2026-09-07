@@ -30,7 +30,7 @@
 //   arcrho:excel-links-retarget-end    - restore it, report status, and reload
 //                                        the cached dataset table when files changed
 import { openContextMenu } from "/ui/shared/components/context_menu/context_menu.js?v=20260811b";
-import { openPathThroughDesktopHost } from "/ui/shared/integrations/open_path.js?v=20260812a";
+import { openPathThroughDesktopHost } from "/ui/shared/integrations/open_path.js?v=20260907b";
 import { createExcelLinksTable, excelLinkDetailRows } from "/ui/project_instance/excel_links_table.js?v=20260818b";
 import "/ui/shared/integrations/zoom_bridge.js?v=20260521a";
 

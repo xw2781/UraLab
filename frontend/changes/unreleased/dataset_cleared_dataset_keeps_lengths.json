@@ -1,0 +1,10 @@
+{
+  "type": "fix",
+  "scope": "dataset",
+  "audience": "user",
+  "summary": "A hand-entered dataset whose values were all set to 0 now keeps its zeros when a length is changed, and keeps the new lengths when values are pasted in and saved.",
+  "details": [
+    "Changing a length used to reload the dataset's saved file over the zeros, and pasting values then snapped the length controls back to the file's stored period.",
+    "The grid is now rebuilt empty at the new lengths without a reload, the controls hold those lengths until the values are saved or set back to 0, and the save writes a new file at that shape in place of the old one."
+  ]
+}

@@ -85,12 +85,18 @@ export function wireDatasetInputController(deps) {
     restoreManualDatasetModeControls = null,
     chooseStoredDevelopmentLength = null,
     refreshDatasetSettingsDirty = null,
+    refreshClearedDatasetModel = null,
   } = deps;
 
+  // A grid with nothing in it is rebuilt at the new lengths rather than run:
+  // a draft has no file to run, and a cleared dataset must not read its file's
+  // old values back over the zeros.
   async function refreshDraftModelAfterInputChange() {
-    if (!isProjectInstanceDraft || typeof refreshProjectInstanceDraftModel !== "function") return false;
-    await refreshProjectInstanceDraftModel();
-    return true;
+    if (isProjectInstanceDraft && typeof refreshProjectInstanceDraftModel === "function") {
+      await refreshProjectInstanceDraftModel();
+      return true;
+    }
+    return typeof refreshClearedDatasetModel === "function" && await refreshClearedDatasetModel();
   }
 
   document.getElementById("reloadBtn")?.addEventListener("click", loadDataset);

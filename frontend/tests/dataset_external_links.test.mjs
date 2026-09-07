@@ -997,3 +997,48 @@ test("the shared grid stylesheet paints a failed link red in both themes", async
     /\[data-arcrho-theme="dark"\] \.arSpreadsheetTable td\.arExternalLinkErrorCell,\s*:root\[data-arcrho-theme="dark"\] \.arSpreadsheetTable td\.arInternalLinkErrorCell \{\s*color: var\(--ar-color-danger\);/u,
   );
 });
+
+test("a view coarser than the stored shape holds the whole link inventory still", async () => {
+  // A saved link names a cell of the file's own triangle. Shown at a coarser
+  // period, every cell on screen stands for several stored ones, so painting,
+  // naming, or releasing one would land on the wrong cell - and every stored
+  // link would report itself missing. The links themselves are untouched.
+  const state = { model: model2x2(), dirty: new Map() };
+  let atStoredShape = true;
+  const controller = externalLinks.createDatasetExternalLinksController({
+    state,
+    isAtStoredShape: () => atStoredShape,
+    readCellsBatch: async (items) => ({
+      ok: true,
+      results: items.map(() => ({ ok: true, value: 7 })),
+    }),
+  });
+  controller.load([{ reference: REF, target_cells: [
+    { row: 0, column: 0, source_cell: "A1" },
+    { row: 0, column: 1, source_cell: "B1" },
+    { row: 1, column: 0, source_cell: "A2" },
+    { row: 1, column: 1, source_cell: "B2" },
+  ] }]);
+
+  assert.ok(controller.hasLinks());
+  assert.ok(controller.getCellLinkInfo(0, 0));
+  const onShape = controller.listRecords()[0];
+  assert.equal(onShape.destination, "2024~2025 / 12m~24m");
+
+  atStoredShape = false;
+  assert.equal(controller.getCellLinkInfo(0, 0), null);
+  const painted = decoratedCell();
+  controller.decorateCell(painted, 0, 0);
+  assert.equal(painted.classes.size, 0);
+  assert.equal(controller.hardCodeTargetCells([{ row: 0, column: 0 }]), 0);
+  // The link is still there to come back to, and the columns read off the grid
+  // stay blank rather than quoting a cell the link never named.
+  assert.ok(controller.hasLinks());
+  const offShape = controller.listRecords()[0];
+  assert.equal(offShape.value, "");
+  assert.equal(offShape.destination, "Data");
+  assert.equal(offShape.affectedCellCount, 4);
+
+  atStoredShape = true;
+  assert.ok(controller.getCellLinkInfo(0, 0));
+});

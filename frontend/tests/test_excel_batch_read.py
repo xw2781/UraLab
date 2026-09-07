@@ -22,11 +22,18 @@ if str(FRONTEND_ROOT) not in sys.path:
     sys.path.insert(0, str(FRONTEND_ROOT))
 
 import openpyxl
+from openpyxl.worksheet._read_only import ReadOnlyWorksheet
 
 from app_server.services import excel_service
 
 
 class _Workbook:
+    """A workbook whose every cell holds one value, read the way the real one is.
+
+    The service reads a sheet by walking the rectangle its requested cells
+    span, so the fake answers ``iter_rows`` rather than single addresses.
+    """
+
     sheetnames = ["Sheet1"]
 
     def __init__(self, value: float) -> None:
@@ -36,7 +43,12 @@ class _Workbook:
     def __getitem__(self, key: str):
         if key == "Sheet1":
             return self
-        return SimpleNamespace(value=self.value)
+        raise KeyError(key)
+
+    def iter_rows(self, min_row, max_row, min_col, max_col, values_only=False):
+        del values_only
+        for _row in range(min_row, max_row + 1):
+            yield tuple(self.value for _column in range(min_col, max_col + 1))
 
     def close(self) -> None:
         self.closed = True
@@ -148,6 +160,96 @@ class ExcelBatchReadTests(unittest.TestCase):
             [item["value"] for item in result["results"]], [1.0, None, 3.0, None, None]
         )
 
+    def test_a_linked_range_walks_its_sheet_once(self) -> None:
+        # A read-only worksheet re-reads the sheet from its first row every
+        # time it is asked for a cell by address, so reading a linked range one
+        # address at a time costs one pass per cell and takes minutes on a
+        # 120x120 range. The whole rectangle is answered by a single walk.
+        work = self.work_dir()
+        book = work / "Grid.xlsx"
+        workbook = openpyxl.Workbook()
+        sheet = workbook.active
+        sheet.title = "Sheet1"
+        for row in range(1, 31):
+            for column in range(1, 31):
+                sheet.cell(row=row, column=column, value=row * 100 + column)
+        workbook.save(book)
+
+        items = [
+            SimpleNamespace(book_path=str(book), sheet="Sheet1", cell=f"{letter}{row}")
+            for row in range(1, 31)
+            for letter in (chr(ord("A") + index) for index in range(30 - 4))
+        ]
+        walks = []
+        original = ReadOnlyWorksheet.iter_rows
+
+        def counting_iter_rows(worksheet, *args, **kwargs):
+            walks.append(kwargs)
+            return original(worksheet, *args, **kwargs)
+
+        with mock.patch.object(ReadOnlyWorksheet, "iter_rows", counting_iter_rows):
+            result = excel_service.excel_read_cells_batch(items)
+
+        self.assertEqual(len(walks), 1)
+        self.assertTrue(all(item["ok"] for item in result["results"]))
+        self.assertEqual(result["results"][0]["value"], 101.0)
+        self.assertEqual(result["results"][-1]["value"], 3026.0)
+
+    def test_each_sheet_of_a_workbook_is_walked_once(self) -> None:
+        # Cells of two sheets are two walks of one open workbook, not one walk
+        # per cell and not one open per sheet.
+        work = self.work_dir()
+        book = work / "Sheets.xlsx"
+        workbook = openpyxl.Workbook()
+        first = workbook.active
+        first.title = "Sheet1"
+        first["A1"] = 1
+        first["A2"] = 2
+        second = workbook.create_sheet("Sheet2")
+        second["B1"] = 3
+        workbook.save(book)
+
+        items = [
+            SimpleNamespace(book_path=str(book), sheet=sheet, cell=cell)
+            for sheet, cell in (("Sheet1", "A1"), ("Sheet2", "B1"), ("Sheet1", "A2"))
+        ]
+        walks = []
+        original = ReadOnlyWorksheet.iter_rows
+
+        def counting_iter_rows(worksheet, *args, **kwargs):
+            walks.append(worksheet.title)
+            return original(worksheet, *args, **kwargs)
+
+        with (
+            mock.patch.object(ReadOnlyWorksheet, "iter_rows", counting_iter_rows),
+            mock.patch.object(
+                excel_service.openpyxl, "load_workbook", wraps=openpyxl.load_workbook
+            ) as load,
+        ):
+            result = excel_service.excel_read_cells_batch(items)
+
+        self.assertEqual(sorted(walks), ["Sheet1", "Sheet2"])
+        self.assertEqual(load.call_count, 1)
+        self.assertEqual([item["value"] for item in result["results"]], [1.0, 3.0, 2.0])
+
+    def test_a_read_leaves_the_workbook_file_unlocked(self) -> None:
+        # The workbook belongs to whoever is editing it in Excel: a link read
+        # that held the file open would stop them saving it.
+        work = self.work_dir()
+        book = work / "Free.xlsx"
+        workbook = openpyxl.Workbook()
+        workbook.active.title = "Sheet1"
+        workbook.active["A1"] = 5
+        workbook.save(book)
+
+        excel_service.excel_read_cell(str(book), "Sheet1", "A1")
+        excel_service.excel_read_cells_batch(
+            [SimpleNamespace(book_path=str(book), sheet="Sheet1", cell="A1")]
+        )
+
+        book.unlink()
+        self.assertFalse(book.exists())
+
     def test_single_and_batch_reads_answer_one_cell_identically(self) -> None:
         # One rule for what a linked cell means, so a client commit and the
         # hosted retarget cannot disagree about the same workbook cell.
@@ -181,15 +283,23 @@ class ExcelBatchReadTests(unittest.TestCase):
             def __getitem__(self, key: str):
                 if key == "Sheet1":
                     return self
-                if key == "B1":
-                    raise ValueError("B1 is not a valid coordinate")
-                return SimpleNamespace(value=7.5 if key == "A1" else "#REF!")
+                raise KeyError(key)
+
+            def iter_rows(self, min_row, max_row, min_col, max_col, values_only=False):
+                del values_only
+                values = {1: 7.5, 3: "#REF!"}
+                for _row in range(min_row, max_row + 1):
+                    yield tuple(
+                        values.get(column) for column in range(min_col, max_col + 1)
+                    )
 
             def close(self) -> None:
                 self.closed = True
 
         book = _MixedWorkbook()
-        items = [self.item("first.xlsx", cell) for cell in ("A1", "B1", "C1")]
+        # "B1:B2" is a range, not a cell address: a sidecar written by hand can
+        # hold one, and it is the whole of what "unreadable address" now means.
+        items = [self.item("first.xlsx", cell) for cell in ("A1", "B1:B2", "C1")]
         with (
             mock.patch.object(Path, "exists", return_value=True),
             mock.patch.object(
@@ -201,7 +311,7 @@ class ExcelBatchReadTests(unittest.TestCase):
         good, unreadable, not_numeric = result["results"]
         self.assertEqual(good, {"ok": True, "value": 7.5})
         self.assertFalse(unreadable["ok"])
-        self.assertIn("B1", unreadable["error"])
+        self.assertIn("B1:B2", unreadable["error"])
         self.assertFalse(not_numeric["ok"])
         self.assertIn("#REF!", not_numeric["error"])
         self.assertEqual(load.call_count, 1)

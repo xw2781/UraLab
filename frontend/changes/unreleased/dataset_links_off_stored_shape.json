@@ -1,0 +1,11 @@
+{
+  "type": "fix",
+  "scope": "dataset",
+  "audience": "user",
+  "summary": "A linked dataset shown at a coarser period than it is stored at no longer reports every link as broken, and says which length to set back.",
+  "details": [
+    "Opening a dataset stored monthly at an annual display used to raise an Excel Link Reference Error naming every linked cell, and paint those cells red.",
+    "The formula bar now carries one sentence on every cell instead: set the lengths back to the stored period to view or edit the formula.",
+    "While the display is coarser, link contours are not drawn, links cannot be entered, broken, or refreshed, and the Links tab leaves the Value and Destination columns blank. Everything returns when the lengths do."
+  ]
+}

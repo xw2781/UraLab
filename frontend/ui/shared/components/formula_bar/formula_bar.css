@@ -42,6 +42,33 @@ lives here.
   box-shadow: 0 0 0 1px #3b82f6, var(--ar-shadow-floating);
 }
 
+/* A bar carrying a notice rather than a formula: why there is nothing to edit
+   here, not a control waiting for input. The sentence is prose, so it drops the
+   formula's monospace for the interface font, and the whole bar is muted. */
+.arFormulaBar.isNote {
+  border-color: #cfd6df;
+  background: #f8fafc;
+  cursor: default;
+}
+/* A formula is clipped at the bar's edge because its tail is the least useful
+   part of it. A notice is a sentence, and its tail is the instruction, so it
+   wraps onto a second line instead. The bar is still sized to the sentence and
+   still capped by the grid frame: the wrap only happens in a window too narrow
+   to hold it on one line. */
+.arFormulaBar.isNote .arFormulaBarDisplay {
+  font-family: Arial, "Segoe UI", "SegoeUI", Tahoma, sans-serif;
+  color: #4b5563;
+  cursor: default;
+  height: auto;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
+.arFormulaBar.isNote .arFormulaBarFxIcon {
+  background: #eef2f6;
+  color: #6b7280;
+}
+
 .arFormulaBarFxIcon {
   display: inline-flex;
   align-items: center;

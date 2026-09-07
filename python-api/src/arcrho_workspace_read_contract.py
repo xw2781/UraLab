@@ -80,6 +80,14 @@ WORKSPACE_READ_KINDS: dict[str, WorkspaceReadKind] = {
         ("project_name", "reserving_class", "dataset_name"),
         ("csv_file", "origin_length", "development_length", "cumulative", "calendar", "at_display_shape"),
     ),
+    # The cells a triangle has at a pair of period lengths, read from the
+    # project's General Settings. A hand-entered grid is drawn before there is
+    # a file to load, so the window asks for this shape instead.
+    "triangle_grid_shape": WorkspaceReadKind(
+        "dataset_service",
+        "triangle_grid_shape",
+        ("project_name", "origin_length", "development_length"),
+    ),
     # The id-addressed grid load that follows a dataset run. ``ds_id`` is a
     # per-process handle; the server resolves it only if it registered the
     # handle itself (a hosted run or cached load in the same Gateway

@@ -1,0 +1,10 @@
+{
+  "type": "improvement",
+  "scope": "dataset",
+  "audience": "user",
+  "summary": "Adding or refreshing a large Excel-linked range in the Data tab is now close to instant instead of taking minutes.",
+  "details": [
+    "A linked block of 120 by 120 cells used to be read one cell at a time, re-reading the whole worksheet for each; the sheet is now read once for the whole block.",
+    "Reading a linked workbook no longer leaves the file locked, so it can still be saved and renamed in Excel."
+  ]
+}

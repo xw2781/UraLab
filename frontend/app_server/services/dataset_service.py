@@ -1126,6 +1126,65 @@ def _empty_dataset_geometry_from_general_settings(
     return origin_count, development_count, mask
 
 
+def triangle_grid_shape(
+    project_name: str,
+    origin_length: int,
+    development_length: int,
+) -> Dict[str, Any]:
+    """The rows, columns, and cells a triangle created at this shape would have.
+
+    A hand-entered triangle is drawn in the window before there is a file to
+    read it from, so the grid asks for the geometry the empty CSV would be
+    written at: the cells stop on the project's calendar diagonal, where the
+    Origin Start Date, the Origin End Date, and the Development End Date put
+    them together. A Vector has no diagonal and needs no answer.
+    """
+    p = str(project_name or "").strip()
+    if not p:
+        raise HTTPException(400, "project_name is required.")
+    origin_count, development_count, mask = _empty_dataset_geometry_from_general_settings(
+        p,
+        max(1, int(origin_length or 1)),
+        max(1, int(development_length or 1)),
+    )
+    return {
+        "ok": True,
+        "project_name": p,
+        "origin_count": int(origin_count),
+        "development_count": int(development_count),
+        "mask": mask.tolist(),
+    }
+
+
+def _triangle_shape_masked(
+    mask: List[List[bool]],
+    project_name: str,
+    origin_length: int,
+    development_length: int,
+) -> List[List[bool]]:
+    """Drop from ``mask`` every cell past the project's calendar diagonal.
+
+    A hand-entered triangle has the cells :func:`triangle_grid_shape` gives it,
+    whatever its file happens to hold: a figure written past the diagonal --
+    by a window that laid the grid out on a rule of its own -- is neither shown
+    nor editable, and the next save writes that cell blank.
+    """
+    try:
+        _, _, shape = _empty_dataset_geometry_from_general_settings(
+            project_name, origin_length, development_length
+        )
+    except HTTPException:
+        return mask
+    rows, columns = shape.shape
+    return [
+        [
+            bool(cell) and r < rows and c < columns and bool(shape[r, c])
+            for c, cell in enumerate(row)
+        ]
+        for r, row in enumerate(mask)
+    ]
+
+
 def valuation_origin_row_count(project_name: str, origin_period_length: int) -> int | None:
     """Count the origin periods that start on or before the Development End Date.
 
@@ -2015,6 +2074,11 @@ def load_cached_dataset_values(
     except OSError:
         file_mtime = None
     register_dataset_handle(dataset_id, handle_path)
+    mask = [[value is not None for value in row] for row in values]
+    if not is_vector and str(sidecar.get("source_kind") or "").strip().casefold() == "input":
+        mask = _triangle_shape_masked(
+            mask, p, resolved_origin_length, resolved_development_length
+        )
     return {
         "ok": True,
         "id": dataset_id,
@@ -2033,7 +2097,7 @@ def load_cached_dataset_values(
         "stored_development_length": sidecar_development_length,
         "origin_labels": origin_labels,
         "dev_labels": development_labels,
-        "mask": [[value is not None for value in row] for row in values],
+        "mask": mask,
         "mtime": file_mtime,
         "csv_file": os.path.basename(csv_path),
         "source_kind": str(sidecar.get("source_kind") or ""),
@@ -2180,6 +2244,7 @@ def _save_dataset_sidecar_impl(
     origin_length: int,
     development_length: int,
     stored_development_length: int | None = None,
+    stored_values_cleared: bool = False,
     cumulative: bool = True,
     transposed: bool = False,
     calendar: bool = False,
@@ -2289,7 +2354,10 @@ def _save_dataset_sidecar_impl(
                 if existing_csv_file
                 else ""
             )
-            if _stored_csv_holds_values(existing_csv_path):
+            # A client that set every value to 0 and reshaped the grid before
+            # entering the values it sends is replacing the file outright, so
+            # the values the old file still holds do not fix the shape.
+            if _stored_csv_holds_values(existing_csv_path) and not stored_values_cleared:
                 if not is_vector and stored_development_length is not None and (
                     stored_development_months != existing_development
                 ):

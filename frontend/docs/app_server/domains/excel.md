@@ -32,6 +32,7 @@ Excel integration domain (workbook value reads, lightweight file metadata checks
 
 ## Data/State/Caches
 <!-- MANUAL:BEGIN -->
+- A batch read groups its cells by workbook and then by sheet, and answers each sheet from one walk of the rectangle its requested cells span. A read-only worksheet re-reads the sheet from its first row every time it is asked for a single address, so reading a linked range address by address costs one pass per cell — a 120x120 range took roughly a quarter of an hour and now takes well under a second. Every walk is run to its end rather than abandoned once the last requested cell is answered, because a worksheet only releases the sheet's XML stream when its walk finishes, and a stream left open keeps the workbook file locked against the person editing it in Excel. `excel_read_cell` is the same reader asked for one cell, so a single read and a batch read can never disagree.
 - Cell reads and the readability probe (`excel_workbook_readable`) are plain openpyxl file reads that need no Excel installation, so they run wherever the workbook is reachable — on ArcRho Server for the Excel Link Manager; only opening a workbook in Excel needs local automation. Timestamp checks use filesystem metadata only.
 <!-- MANUAL:END -->
 

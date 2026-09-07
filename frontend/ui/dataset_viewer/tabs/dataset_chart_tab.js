@@ -3,7 +3,7 @@ import { formatDatasetOriginLabel } from "/ui/shared/dataset/dataset_origin_labe
 import {
   formatDatasetChartValue,
   getDisplayDatasetModel,
-} from "/ui/shared/tabs/data/dataset_grid_view.js?v=20260811d";
+} from "/ui/shared/tabs/data/dataset_grid_view.js?v=20260907c";
 import {
   renderChart as renderChartCanvas,
   setupChartHover,

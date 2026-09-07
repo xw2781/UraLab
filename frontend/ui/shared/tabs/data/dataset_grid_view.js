@@ -167,6 +167,8 @@ function showCtxMenu(anchorEl, clientX, clientY) {
   if (!menu) return;
   const pasteButton = menu.querySelector('[data-action="paste"]');
   if (pasteButton) pasteButton.hidden = !gridEditConfig?.canPasteSelection?.();
+  const clearButton = menu.querySelector('[data-action="clear_data"]');
+  if (clearButton) clearButton.hidden = !gridEditConfig?.canClearData?.();
   openContextMenu(menu, {
     anchorEl,
     clientX,

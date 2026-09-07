@@ -8,7 +8,7 @@ table and the freshness advisory above it, in the same words the DFM Links tab
 uses so a stale workbook reads the same on every method page.
 ===============================================================================
 */
-import { createLinksTab } from "/ui/shared/tabs/links/links_tab.js?v=20260901c";
+import { createLinksTab } from "/ui/shared/tabs/links/links_tab.js?v=20260907a";
 
 function plural(count, noun) {
   return `${count} ${noun}${count === 1 ? "" : "s"}`;

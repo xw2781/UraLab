@@ -317,6 +317,7 @@ export function mountDatasetViewer(container) {
     <div class="ctx-menu-inner">
       <button class="ctx-item" data-action="copy_value">Copy values</button>
       <button class="ctx-item" data-action="paste">Paste</button>
+      <button class="ctx-item" data-action="clear_data">Clear data</button>
       <button class="ctx-item" data-action="remove_highlights">Remove Highlights</button>
       <div class="ctx-sep"></div>
       <button class="ctx-item" data-action="toggle_subtotal">Show/Hide subtotal</button>

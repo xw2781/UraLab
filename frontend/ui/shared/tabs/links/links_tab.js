@@ -18,7 +18,11 @@ and the empty, loading, warning, and error states.
 ===============================================================================
 */
 import { openContextMenu } from "/ui/shared/components/context_menu/context_menu.js";
-import { openPathThroughDesktopHost } from "/ui/shared/integrations/open_path.js?v=20260812a";
+import {
+  copyTextToClipboard,
+  openPathThroughDesktopHost,
+  revealPathThroughDesktopHost,
+} from "/ui/shared/integrations/open_path.js?v=20260907b";
 
 const LINKS_STYLESHEET_ID = "arExternalLinksStylesheet";
 const LINKS_STYLESHEET_HREF = "/ui/shared/tabs/links/links_tab.css?v=20260901b";
@@ -209,8 +213,9 @@ function clampWidth(key, width) {
  *
  * `getLinks` returns the page's records; `onRefreshLinks(records)` and
  * `onBreakLinks(records)` act on a selection of them. `onOpenWorkbook(path,
- * {readOnly})` and `onOpenDataset(record)` serve the row context menu's open
- * entries for Excel and ArcRho rows.
+ * {readOnly})`, `onRevealWorkbook(path)`, `onCopyPath(text)`, and
+ * `onOpenDataset(record)` serve the row context menu's open entries for Excel
+ * and ArcRho rows.
  */
 export function createLinksTab({
   container,
@@ -220,6 +225,8 @@ export function createLinksTab({
   onRefreshLinks,
   onBreakLinks,
   onOpenWorkbook = openPathThroughDesktopHost,
+  onRevealWorkbook = revealPathThroughDesktopHost,
+  onCopyPath = copyTextToClipboard,
   onOpenDataset = null,
   onStatus,
   documentRef = container?.ownerDocument || globalThis.document,
@@ -243,6 +250,12 @@ export function createLinksTab({
   }
   if (typeof onOpenWorkbook !== "function") {
     throw new TypeError("createLinksTab onOpenWorkbook must be a function.");
+  }
+  if (typeof onRevealWorkbook !== "function") {
+    throw new TypeError("createLinksTab onRevealWorkbook must be a function.");
+  }
+  if (typeof onCopyPath !== "function") {
+    throw new TypeError("createLinksTab onCopyPath must be a function.");
   }
   if (onOpenDataset !== null && typeof onOpenDataset !== "function") {
     throw new TypeError("createLinksTab onOpenDataset must be a function when provided.");
@@ -289,6 +302,22 @@ export function createLinksTab({
       run: (record) => onOpenWorkbook(record.workbookPath, { readOnly: true }),
       failure: "The workbook could not be opened read-only.",
       success: "Workbook opened read-only.",
+    },
+    {
+      action: "copy-workbook-path",
+      label: "Copy file path",
+      availableFor: (record) => record.kind === "excel" && !!record.workbookPath,
+      run: (record) => onCopyPath(record.workbookPath),
+      failure: "The file path could not be copied.",
+      success: "File path copied.",
+    },
+    {
+      action: "open-workbook-location",
+      label: "Open file location",
+      availableFor: (record) => record.kind === "excel" && !!record.workbookPath,
+      run: (record) => onRevealWorkbook(record.workbookPath),
+      failure: "The file location could not be opened.",
+      success: "File location opened.",
     },
     {
       action: "open-dataset",
