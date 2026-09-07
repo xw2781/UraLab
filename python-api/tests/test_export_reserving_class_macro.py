@@ -122,6 +122,198 @@ class ExportMacroMethodNotesTests(unittest.TestCase):
         self.assertEqual(exporter.counts["datasets_written"], 0)
 
 
+class _FakeTriangle:
+    """A stand-in for a ResQ triangle following the rules the stored-length probe pinned down.
+
+    Shaped like the fake project the probe ran against: annual origins whose
+    newest cell is 113 months old, so a monthly display is 113, 101, ... 5
+    columns wide over 10 rows and 113, 112, ... over 120 monthly rows.
+    """
+
+    NEWEST_AGE = 113
+    ORIGIN_MONTHS = 120
+
+    def __init__(self, origin_length=12, development_length=12, stored_development_length=None, holds_data=True):
+        self.Calculated = False
+        self._origin_length = origin_length
+        self._development_length = development_length
+        self._stored_origin_length = origin_length
+        self._stored_development_length = stored_development_length or development_length
+        self._holds_data = holds_data
+        self._pending = False
+        self.puts = []
+        self.stored_development_puts = 0
+        self.written = {}
+        self.saves = 0
+        self.clears = 0
+
+    @property
+    def _is_empty(self):
+        """A display put moves the store only while nothing has been written at all."""
+        return not self._holds_data and not self._pending
+
+    # -- period lengths ---------------------------------------------------------
+
+    @property
+    def OriginLength(self):
+        return self._origin_length
+
+    @OriginLength.setter
+    def OriginLength(self, value):
+        value = int(value)
+        if value % self._development_length:
+            raise RuntimeError("The development length must be a factor of the origin length")
+        if self._holds_data and value % self._stored_origin_length:
+            raise RuntimeError("The stored origin length must be a factor of the origin length.")
+        self._origin_length = value
+        if self._is_empty:
+            self._stored_origin_length = value
+        self.puts.append(("OriginLength", value))
+
+    @property
+    def DevelopmentLength(self):
+        return self._development_length
+
+    @DevelopmentLength.setter
+    def DevelopmentLength(self, value):
+        value = int(value)
+        if self._origin_length % value:
+            raise RuntimeError("The development length must be a factor of the origin length")
+        if self._holds_data and value % self._stored_development_length:
+            raise RuntimeError("The stored development length must be a factor of the development length.")
+        self._development_length = value
+        if self._is_empty:
+            self._stored_development_length = value
+        self.puts.append(("DevelopmentLength", value))
+
+    @property
+    def StoredOriginLength(self):
+        return self._stored_origin_length
+
+    @property
+    def StoredDevelopmentLength(self):
+        return self._stored_development_length
+
+    @StoredDevelopmentLength.setter
+    def StoredDevelopmentLength(self, value):
+        value = int(value)
+        if self._holds_data:
+            raise RuntimeError("The stored development length may not be set in this triangle.")
+        if self._development_length % value:
+            raise RuntimeError("The stored development length must be a factor of the development length.")
+        self._stored_development_length = value
+        self.stored_development_puts += 1
+        self.puts.append(("StoredDevelopmentLength", value))
+
+    # -- shape and values -------------------------------------------------------
+
+    @property
+    def OriginCount(self):
+        return self.ORIGIN_MONTHS // self._origin_length
+
+    def DevelopmentCountByIndex(self, origin_index):
+        months = self.NEWEST_AGE - self._origin_length * (origin_index - 1)
+        if months <= 0:
+            return 0
+        return -(-months // self._development_length)
+
+    def SetValuesByIndex(self, origin_index, development_index, value):
+        self.written[(self._development_length, origin_index, development_index)] = value
+        self._pending = True
+
+    def ClearData(self):
+        self.clears += 1
+        self.written.clear()
+        self._pending = False
+        self._holds_data = False
+
+    def Save(self):
+        self.saves += 1
+        if self._pending:
+            self._holds_data = True
+
+
+def _triangle_values(triangle):
+    """The CSV matrix a sidecar would hold for *triangle* at its current shape."""
+    return [
+        [float(1000 * i + j) for j in range(1, triangle.DevelopmentCountByIndex(i) + 1)]
+        for i in range(1, triangle.OriginCount + 1)
+    ]
+
+
+class ExportMacroStoredShapeTests(unittest.TestCase):
+    """A triangle is written at the shape ArcRho stores it in, then shown at its display shape again."""
+
+    def setUp(self):
+        self.module = _load_macro()
+
+    def _exporter(self):
+        return self.module.ResQReservingClassExporter(
+            _migration(), arcrho_project_name="Project", rc_path="Line/Class", server_root=Path(".")
+        )
+
+    @staticmethod
+    def _sidecar(origin, development, stored_origin, stored_development):
+        return {
+            "origin_length": origin,
+            "development_length": development,
+            "stored_origin_length": stored_origin,
+            "stored_development_length": stored_development,
+        }
+
+    def test_a_finer_development_store_is_written_monthly_and_shown_annually_again(self):
+        triangle = _FakeTriangle(origin_length=12, development_length=12)
+        stored = _FakeTriangle(origin_length=12, development_length=1)
+        values = _triangle_values(stored)
+
+        self._exporter()._write_triangle_values(triangle, self._sidecar(12, 12, 12, 1), values)
+
+        self.assertEqual(triangle.clears, 1)
+        self.assertEqual(triangle.saves, 1)
+        self.assertEqual(triangle.StoredDevelopmentLength, 1)
+        self.assertEqual((triangle.OriginLength, triangle.DevelopmentLength), (12, 12))
+        self.assertEqual({key[0] for key in triangle.written}, {1})
+        self.assertEqual(len(triangle.written), sum(len(row) for row in values))
+        self.assertEqual(triangle.written[(1, 1, 113)], 1113.0)
+        self.assertEqual(triangle.puts[-1], ("DevelopmentLength", 12))
+
+    def test_a_monthly_origin_store_is_written_row_by_row_and_shown_annually_again(self):
+        triangle = _FakeTriangle(origin_length=1, development_length=1)
+        values = _triangle_values(triangle)
+
+        self._exporter()._write_triangle_values(triangle, self._sidecar(12, 12, 1, 1), values)
+
+        self.assertEqual({key[0] for key in triangle.written}, {1})
+        self.assertEqual(len(triangle.written), sum(len(row) for row in values))
+        self.assertEqual((triangle.OriginLength, triangle.DevelopmentLength), (12, 12))
+        self.assertEqual((triangle.StoredOriginLength, triangle.StoredDevelopmentLength), (1, 1))
+        self.assertEqual(triangle.saves, 1)
+
+    def test_a_matching_store_writes_at_the_display_shape_and_never_sets_the_stored_length(self):
+        triangle = _FakeTriangle(origin_length=12, development_length=12)
+        values = _triangle_values(triangle)
+
+        self._exporter()._write_triangle_values(triangle, self._sidecar(12, 12, 12, 12), values)
+
+        self.assertEqual(triangle.stored_development_puts, 0)
+        self.assertEqual({key[0] for key in triangle.written}, {12})
+        self.assertEqual(len(triangle.written), 55)
+        self.assertEqual((triangle.OriginLength, triangle.DevelopmentLength), (12, 12))
+
+    def test_a_stored_origin_mismatch_is_a_skip_that_names_both_lengths(self):
+        triangle = _FakeTriangle(origin_length=1, development_length=1)
+
+        with self.assertRaises(self.module.ExportSkipped) as caught:
+            self._exporter()._write_triangle_values(triangle, self._sidecar(12, 12, 12, 12), [[1.0]])
+
+        self.assertEqual(caught.exception.reason, "stored_origin_mismatch")
+        self.assertIn("origin length 12", str(caught.exception))
+        self.assertIn("at 1", str(caught.exception))
+        self.assertEqual(triangle.clears, 0)
+        self.assertEqual(triangle.saves, 0)
+        self.assertEqual(triangle.written, {})
+
+
 class ExportMacroNeverCreatesTests(unittest.TestCase):
     """An item ResQ does not hold is a warning, never a creation; a DFM ResQ cannot evaluate is skipped before any write."""
 

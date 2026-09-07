@@ -17,7 +17,7 @@ index is a summary of those lines, not a second source of truth.
 | [hosted_save_http_transport.md](hosted_save_http_transport.md) | Dataset-sidecar and DFM-method pilot implemented; the broader rollout is still proposed. |
 | [hosted_workspace_http_transport.md](hosted_workspace_http_transport.md) | Phase 1 reads and Phase 2 engine calculations implemented; the bounded-server foundation, SSE, and small writes remain. |
 | [local_runtime_log_retention_plan.md](local_runtime_log_retention_plan.md) | Audit complete (2026-08-09); remediation not started. |
-| [manual_input_stored_length_resq_alignment.md](manual_input_stored_length_resq_alignment.md) | ResQ's stored-length and coarse-paste rules established against its API (2026-09-06); broken into 7 session-sized steps, 4 done (2026-09-06). |
+| [manual_input_stored_length_resq_alignment.md](manual_input_stored_length_resq_alignment.md) | ResQ's stored-length and coarse-paste rules established against its API (2026-09-06); broken into 7 session-sized steps, 5 done (2026-09-06). |
 
 ## Completed
 

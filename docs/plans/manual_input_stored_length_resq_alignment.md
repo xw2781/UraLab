@@ -1,6 +1,6 @@
 # Manual Input Triangles: Matching ResQ's Stored-Length Editing
 
-Status: Broken into 7 session-sized steps on 2026-09-06; steps 1 to 4 landed the same day (4 of 7 done). The ResQ rules are established against the COM API and both design decisions are taken, so every step can run unattended.
+Status: Broken into 7 session-sized steps on 2026-09-06; steps 1 to 5 landed the same day (5 of 7 done). The ResQ rules are established against the COM API and both design decisions are taken, so every step can run unattended.
 Last updated: 2026-09-06.
 
 ## Progress
@@ -13,11 +13,11 @@ Plain-language tracking. The agent that finishes a step ticks its box, fills in 
 | 2 | The Data tab shows "Stored at" beside each length, and an empty triangle's development store can be lowered there | [x] | 2026-09-06 | Each length in the Data tab now has a "Stored at" value beside it, and while a hand-entered dataset is still empty you can lower the development one so a yearly view keeps monthly figures underneath. |
 | 3 | Values saved at a coarser development view land in the stored cells at their ages | [x] | 2026-09-06 | Figures saved while a yearly view of a monthly dataset is on screen now land in the monthly cells underneath, at the dates those columns stand for, and the rest of the triangle is cleared, exactly as ResQ does it. |
 | 4 | Typing, paste and links work when only the development view is coarser than the store | [x] | 2026-09-06 | A hand-entered dataset shown a year at a time over finer figures can now be typed into, pasted into and linked; only a view that groups the rows is still read-only, and the status line says a save will write each figure at its own column date and clear the periods between. |
-| 5 | The export macro writes a hand-entered triangle to ResQ at its stored shape | [ ] | | |
+| 5 | The export macro writes a hand-entered triangle to ResQ at its stored shape | [x] | 2026-09-06 | Sending a hand-entered dataset back to ResQ now writes it at the shape ArcRho keeps it in, so a yearly view over monthly figures arrives with the same numbers in the same cells; a ResQ triangle kept by a different origin period is reported as skipped rather than written wrongly. |
 | 6 | A yearly view of a monthly triangle is pinned to ResQ's own numbers | [ ] | | |
 | 7 | The server components carry the change | [ ] | | |
 
-Overall: 4 of 7 steps done.
+Overall: 5 of 7 steps done.
 
 ## How agents work this plan
 
@@ -83,6 +83,10 @@ Probed on the Server PC in `NJ_Annual_Prod_202605_Fake`, class `HPPREF\HO+DF\NJ\
    | 2024 | 435015 | 1086138 | 1086282 | | | | | | | |
    | 2025 | 495015 | 1230138 | | | | | | | | |
    | 2026 | 555015 | | | | | | | | | |
+
+9. **A display development length must also be a factor of the display origin length.** Raising `DevelopmentLength` to 12 on a triangle shown at origin 1 is refused (`The development length must be a factor of the origin length`), so a shorter development period is set before the origin comes down and a longer one after the origin has gone up. Found while confirming the export sequence for step 5.
+10. **The export write sequence, confirmed on the fake project (step 5).** On a saved triangle: `ClearData`, show at ArcRho's display pair, set `StoredDevelopmentLength`, show at ArcRho's stored pair, write every stored cell by index, put the display pair back, `Save`. Putting the display pair back **before** the save is safe on both axes — the store stays where it was put and every written cell survives (590 stored cells over a 12/12 store rebuilt as 12/1, and 770 over a 1/1 store shown at 12/12). A display put resyncs the store only while nothing at all has been written.
+11. **`ClearData` frees the stored origin length too.** After `ClearData` on a saved triangle, an `OriginLength` put moved the store from origin 1 to origin 12 — `StoredOriginLength` still has no setter (`Invalid number of parameters.`). Decision 2 keeps a stored-origin mismatch a reportable skip all the same, so the export never silently restates a triangle at a different origin period.
 
 ### Answers to the questions the GUI left open
 
@@ -199,9 +203,9 @@ Steps 1→2 and 3→4 are ordered pairs. Steps 1 and 3 both edit the dataset sav
 
 **Do.**
 
-- [ ] `_write_triangle_values`: read the sidecar's stored pair. If ResQ's `StoredOriginLength` differs, raise `ExportSkipped("stored_origin_mismatch", …)` naming both values. Otherwise `ClearData`, set `DevelopmentLength` to the sidecar's display length and `StoredDevelopmentLength` to its stored one when they differ (rule 4 allows it after `ClearData`), show the triangle at the stored pair, write the CSV by index, put the display pair back, `Save`.
-- [ ] Confirm the sequence once on the fake project with the probe (`--keep`, then inspect and delete), since rule 3's resync after `ClearData` on a saved triangle was not probed.
-- [ ] Replace the stale "captured at the sidecar display lengths" comment; bump `# Version` and `MACRO_VERSION`; write the release note; archive the backup copy; publish to the shared library.
+- [x] `_write_triangle_values`: read the sidecar's stored pair. If ResQ's `StoredOriginLength` differs, raise `ExportSkipped("stored_origin_mismatch", …)` naming both values. Otherwise `ClearData`, set `DevelopmentLength` to the sidecar's display length and `StoredDevelopmentLength` to its stored one when they differ (rule 4 allows it after `ClearData`), show the triangle at the stored pair, write the CSV by index, put the display pair back, `Save`.
+- [x] Confirm the sequence once on the fake project with the probe (`--keep`, then inspect and delete), since rule 3's resync after `ClearData` on a saved triangle was not probed.
+- [x] Replace the stale "captured at the sidecar display lengths" comment; bump `# Version` and `MACRO_VERSION`; write the release note; archive the backup copy; publish to the shared library.
 
 **Tests.** [test_export_reserving_class_macro.py](../../python-api/tests/test_export_reserving_class_macro.py) gains: a 12/1 sidecar writes 10×113 values at display 1 and restores 12; a matching store writes as before; a stored-origin mismatch is a skip with its message; the stored development length is set only when it differs.
 

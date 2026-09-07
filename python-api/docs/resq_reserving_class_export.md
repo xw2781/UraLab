@@ -22,9 +22,15 @@ every item below is written, each after the items it reads:
 - **Input datasets** — every sidecar whose `method_type` is `None`, that is
   neither `calculated` nor an `engine` dataset, and that has a CSV cache on
   disk. Triangle and vector values are written cell by cell
-  (`SetValuesByIndex`) and the sidecar Notes go into the ResQ `Notes`. A
-  dataset that is `Calculated` in ResQ is skipped, because ResQ recomputes it,
-  even when ArcRho's library treats the type as an editable input.
+  (`SetValuesByIndex`) and the sidecar Notes go into the ResQ `Notes`. ResQ
+  takes values at the period lengths a dataset is shown at, so a triangle is
+  emptied (`ClearData`), given the sidecar's `stored_development_length`, shown
+  at the sidecar's stored pair for the write, and put back to its display pair
+  before the save; a triangle ResQ stores at a different origin length is
+  skipped as `stored_origin_mismatch`, because that length cannot be changed on
+  an existing triangle. A dataset that is `Calculated` in ResQ is skipped,
+  because ResQ recomputes it, even when ArcRho's library treats the type as an
+  editable input.
 - **DFM methods** — ratio exclusions (`SetExcludedRatios`), User Entry factors
   (`SetUserRatios`, up to the last ratio column), each average row's `- Ult`
   tail factor (`CustomAverages(i).TailFactor`), the selected average per

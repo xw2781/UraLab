@@ -1,7 +1,7 @@
 # <arcrho-macro>
 # Title: Export Reserving Class to ResQ
-# Version: 2.10.0
-# Release Note: A hand-entered triangle is now written to ResQ at the shape ArcRho stores it in, so a dataset kept monthly underneath a yearly view arrives with the same figures in the same cells; a triangle ResQ stores by a different origin period is reported as skipped instead of written wrongly.
+# Version: 2.9.1
+# Release Note: The macro now names the Flight Deck icon a button made from it starts with, so everyone who loads it gets the same glyph; you can still change the icon on your own button.
 # Description: Push the datasets and methods you tick from the reserving class selected in the active Project Instance page into ResQ: input datasets with their Notes, DFM ratio, tail and Curves-tab selections, Result Selection and B&S Case Reserve Adequacy selections and Notes, and a save of every Bornhuetter Ferguson, Cape Cod and B&S Settlement Rate method, in ArcRho's dependency order.
 # Scope: Reserving Class
 # Icon: upload
@@ -153,14 +153,6 @@ def _safe_number(value):
     except (TypeError, ValueError):
         return None
     return number
-
-
-def _safe_length(item, member) -> int:
-    """One of ResQ's period-length members as an int, 0 when it cannot be read."""
-    try:
-        return int(getattr(item, member, 0) or 0)
-    except (TypeError, ValueError):
-        return 0
 
 
 def _dict_path(payload, path):
@@ -411,48 +403,21 @@ class ResQReservingClassExporter:
                 continue
         return 0
 
-    def _show_triangle_at(self, triangle, origin_length, development_length):
-        """Show *triangle* at these lengths, keeping ResQ's factor rule.
-
-        ResQ refuses a development length that is not a factor of the origin
-        length, so a shorter development period is set before the origin comes
-        down and a longer one after the origin has gone up.
-        """
-        current_development = _safe_length(triangle, "DevelopmentLength")
-        puts = [("OriginLength", origin_length), ("DevelopmentLength", development_length)]
-        if development_length and development_length < current_development:
-            puts.reverse()
-        for member, length in puts:
-            if length and _safe_length(triangle, member) != length:
-                setattr(triangle, member, length)
-
     def _write_triangle_values(self, triangle, sidecar, values):
-        if bool(getattr(triangle, "Calculated", False)):
-            raise ExportSkipped("calculated_in_resq", "ResQ dataset is calculated; ResQ recomputes its values")
         origin_length = int(sidecar.get("origin_length") or 0)
         development_length = int(sidecar.get("development_length") or 0)
-        stored_origin_length = int(sidecar.get("stored_origin_length") or 0) or origin_length
-        stored_development_length = int(sidecar.get("stored_development_length") or 0) or development_length
-        resq_stored_origin = _safe_length(triangle, "StoredOriginLength")
-        if stored_origin_length and resq_stored_origin and resq_stored_origin != stored_origin_length:
-            raise ExportSkipped(
-                "stored_origin_mismatch",
-                f"ArcRho stores this triangle at origin length {stored_origin_length} and ResQ stores it "
-                f"at {resq_stored_origin}; ResQ cannot change the stored origin length of an existing triangle",
-            )
-        # The ArcRho CSV holds the sidecar's stored shape, and ResQ takes values
-        # at the length the triangle is shown at. So empty it (which frees the
-        # stored length), give it ArcRho's display shape and stored development
-        # length, show it at the stored shape to write by index, then put the
-        # display shape back before saving.
+        # The ArcRho CSV was captured at the sidecar display lengths; align the
+        # ResQ display grid before writing by index so rows/columns match.
+        if origin_length and int(getattr(triangle, "OriginLength", 0) or 0) != origin_length:
+            triangle.OriginLength = origin_length
+        if development_length and int(getattr(triangle, "DevelopmentLength", 0) or 0) != development_length:
+            triangle.DevelopmentLength = development_length
+        if bool(getattr(triangle, "Calculated", False)):
+            raise ExportSkipped("calculated_in_resq", "ResQ dataset is calculated; ResQ recomputes its values")
         try:
             triangle.ClearData()
         except Exception:
             pass
-        self._show_triangle_at(triangle, origin_length, development_length)
-        if stored_development_length and _safe_length(triangle, "StoredDevelopmentLength") != stored_development_length:
-            triangle.StoredDevelopmentLength = stored_development_length
-        self._show_triangle_at(triangle, stored_origin_length, stored_development_length)
         origin_count = int(triangle.OriginCount)
         for origin_index in range(1, min(origin_count, len(values)) + 1):
             row = values[origin_index - 1]
@@ -462,7 +427,6 @@ class ResQReservingClassExporter:
                 if value is None:
                     continue
                 triangle.SetValuesByIndex(origin_index, development_index, float(value))
-        self._show_triangle_at(triangle, origin_length, development_length)
         triangle.Save()
 
     def _write_vector_values(self, vector, values):
