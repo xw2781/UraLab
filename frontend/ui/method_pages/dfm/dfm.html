@@ -18,7 +18,7 @@
   <link rel="stylesheet" href="/ui/shared/components/context_menu/context_menu.css?v=20260811b"/>
   <link rel="stylesheet" href="/ui/shared/tabs/data/data_tab.css?v=20260830a"/>
   <link rel="stylesheet" href="/ui/shared/components/formula_bar/formula_bar.css?v=20260902a"/>
-  <link rel="stylesheet" href="/ui/method_pages/dfm/dfm.css?v=20260906a"/>
+  <link rel="stylesheet" href="/ui/method_pages/dfm/dfm.css?v=20260906b"/>
   <link rel="stylesheet" href="/ui/shared/styles/themes/light.css?v=20260817d"/>
   <link rel="stylesheet" href="/ui/shared/styles/themes/dark.css?v=20260903a"/>
   <link rel="stylesheet" href="/ui/shared/styles/themes/high_contrast.css?v=20260811c"/>
@@ -106,7 +106,7 @@
       <div class="arDetailsSection">
         <div class="arDetailsGrid">
           <label class="arDetailsLabel" for="originLenSelect">Origin Length : </label>
-          <div class="dfmFormField arDetailsField arDetailsShortField">
+          <div class="dfmFormField arDetailsField dfmLengthField">
             <div class="dfmSpinner" data-target="originLenSelect">
               <select id="originLenSelect"></select>
               <div class="dfmSpinBtns">
@@ -114,11 +114,27 @@
                 <button class="dfmSpinBtn down" type="button" aria-label="Decrease"><span class="dfmStepperCaret" aria-hidden="true"></span></button>
               </div>
             </div>
+            <span class="lenStoredLabel">Stored at:</span>
+            <div class="dfmSpinner" data-target="originStoredLenSelect">
+              <select id="originStoredLenSelect" aria-label="Origin Stored at"></select>
+              <div class="dfmSpinBtns">
+                <button class="dfmSpinBtn up" type="button" aria-label="Increase"><span class="dfmStepperCaret dfmStepperCaretUp" aria-hidden="true"></span></button>
+                <button class="dfmSpinBtn down" type="button" aria-label="Decrease"><span class="dfmStepperCaret" aria-hidden="true"></span></button>
+              </div>
+            </div>
           </div>
           <label class="arDetailsLabel" for="devLenSelect">Development Length : </label>
-          <div class="dfmFormField arDetailsField arDetailsShortField">
+          <div class="dfmFormField arDetailsField dfmLengthField">
             <div class="dfmSpinner" data-target="devLenSelect">
               <select id="devLenSelect"></select>
+              <div class="dfmSpinBtns">
+                <button class="dfmSpinBtn up" type="button" aria-label="Increase"><span class="dfmStepperCaret dfmStepperCaretUp" aria-hidden="true"></span></button>
+                <button class="dfmSpinBtn down" type="button" aria-label="Decrease"><span class="dfmStepperCaret" aria-hidden="true"></span></button>
+              </div>
+            </div>
+            <span class="lenStoredLabel">Stored at:</span>
+            <div class="dfmSpinner" data-target="devStoredLenSelect">
+              <select id="devStoredLenSelect" aria-label="Development Stored at"></select>
               <div class="dfmSpinBtns">
                 <button class="dfmSpinBtn up" type="button" aria-label="Increase"><span class="dfmStepperCaret dfmStepperCaretUp" aria-hidden="true"></span></button>
                 <button class="dfmSpinBtn down" type="button" aria-label="Decrease"><span class="dfmStepperCaret" aria-hidden="true"></span></button>
@@ -431,7 +447,7 @@
       // The window is held blank until the opening tab is rendered; see
       // ui/shared/tabbed_page/initial_tab_paint.js.
       try {
-        await import("/ui/method_pages/dfm/dfm_data_tab_adapter.js?v=20260906a");
+        await import("/ui/method_pages/dfm/dfm_data_tab_adapter.js?v=20260906b");
         try {
           await window.ADA_DATASET_READY;
         } catch (err) {

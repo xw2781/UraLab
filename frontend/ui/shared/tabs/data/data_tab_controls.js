@@ -83,6 +83,8 @@ export function wireDatasetInputController(deps) {
     validateManualDatasetLengthChange = null,
     isManualDatasetModeLocked = null,
     restoreManualDatasetModeControls = null,
+    chooseStoredDevelopmentLength = null,
+    refreshDatasetSettingsDirty = null,
   } = deps;
 
   async function refreshDraftModelAfterInputChange() {
@@ -510,6 +512,18 @@ export function wireDatasetInputController(deps) {
       setStatus("Loading dataset...");
       scheduleAutoRun(0);
       devSel.blur();
+    });
+  }
+
+  // Lowering the development `Stored at` leaves the display alone: the grid
+  // keeps the shape on screen, and the finer periods exist only in the file the
+  // next save writes.
+  const devStoredSel = document.getElementById("devStoredLenSelect");
+  if (devStoredSel && typeof chooseStoredDevelopmentLength === "function") {
+    devStoredSel.addEventListener("change", () => {
+      chooseStoredDevelopmentLength(devStoredSel.value);
+      if (typeof refreshDatasetSettingsDirty === "function") refreshDatasetSettingsDirty();
+      devStoredSel.blur();
     });
   }
 

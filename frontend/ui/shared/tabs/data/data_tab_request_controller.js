@@ -538,15 +538,29 @@ export function registerDataTabRequestController(runtime) {
     return `This dataset is stored at ${stored}, so it can only be shown at a whole multiple of ${stored}.`;
   }
 
-  // The ladder itself never changes: a length the stored period rules out keeps
-  // its place in the list and is shown muted, so the menu carries the shape the
-  // file is held at and nothing has to be said beside the control.
-  function setLenSelectStoredLength(selectId, storedLength) {
+  // A `Stored at` control runs the other way round: the file may be held finer
+  // than it is shown but never coarser, and the period it is held at has to
+  // divide the displayed one evenly.
+  function lenChoicesForDisplayLength(displayLength) {
+    const display = Number(displayLength);
+    if (!Number.isFinite(display) || display <= 0) return LEN_CHOICES.slice();
+    const offered = LEN_CHOICES.filter((choice) => display % choice === 0);
+    return offered.length ? offered : [display];
+  }
+
+  function storedLenUnavailableReason(displayLength) {
+    const display = Number(displayLength);
+    if (!Number.isFinite(display) || display <= 0) return "";
+    return `This dataset is shown at ${display}, so it can only be stored at a period that divides ${display}.`;
+  }
+
+  // The ladder itself never changes: a length the control rules out keeps its
+  // place in the list and is shown muted, so the menu carries the whole ladder
+  // and nothing has to be said beside the control.
+  function paintLenSelectOptions(selectId, offered, reason, fallback) {
     const select = document.getElementById(selectId);
     if (!select) return false;
-    const offered = lenChoicesForStoredLength(storedLength);
     const available = new Set(offered.map((value) => String(value)));
-    const reason = lenUnavailableReason(storedLength);
     const shape = (value, unavailable) => `${value}:${unavailable ? "0" : "1"}`;
     const current = Array.from(select.options).map((option) => shape(option.value, lenOptionIsUnavailable(option)));
     const wanted = LEN_CHOICES.map((value) => shape(value, !available.has(String(value))));
@@ -564,13 +578,26 @@ export function registerDataTabRequestController(runtime) {
       }
       select.appendChild(option);
     }
-    // The finest length still offered is the stored period itself, which is
-    // where the values live, so a display length that has just been muted lands
-    // there rather than on an arbitrary neighbour.
-    select.value = available.has(previous) ? previous : String(offered[offered.length - 1]);
+    // A value that has just been muted lands on the caller's fallback rather
+    // than on an arbitrary neighbour.
+    select.value = available.has(previous) ? previous : String(fallback);
     syncLenDropdownButtonLabel(selectId);
     renderLenDropdownOptions(selectId);
     return true;
+  }
+
+  // The finest length still offered is the stored period itself, which is where
+  // the values live.
+  function setLenSelectStoredLength(selectId, storedLength) {
+    const offered = lenChoicesForStoredLength(storedLength);
+    return paintLenSelectOptions(selectId, offered, lenUnavailableReason(storedLength), offered[offered.length - 1]);
+  }
+
+  // The coarsest period still offered is the displayed one, which is where a
+  // store that has not been lowered sits.
+  function setLenSelectDisplayLength(selectId, displayLength) {
+    const offered = lenChoicesForDisplayLength(displayLength);
+    return paintLenSelectOptions(selectId, offered, storedLenUnavailableReason(displayLength), offered[0]);
   }
 
   function fillLenDropdowns() {
@@ -580,6 +607,10 @@ export function registerDataTabRequestController(runtime) {
 
     setLenSelectStoredLength("originLenSelect", 0);
     setLenSelectStoredLength("devLenSelect", 0);
+    // The two `Stored at` controls carry the same ladder, narrowed to the
+    // periods that divide the length beside them.
+    setLenSelectDisplayLength("originStoredLenSelect", 12);
+    setLenSelectDisplayLength("devStoredLenSelect", 12);
 
     // defaults
     o.value = "12";
@@ -930,9 +961,12 @@ export function registerDataTabRequestController(runtime) {
     setLenSelectLock,
     setLenSelectValue,
     lenChoicesForStoredLength,
+    lenChoicesForDisplayLength,
     lenOptionIsUnavailable,
     lenUnavailableReason,
+    storedLenUnavailableReason,
     setLenSelectStoredLength,
+    setLenSelectDisplayLength,
     setLenSelectHint,
     chooseActiveLenDropdownOption,
     moveLenDropdownActiveOption,

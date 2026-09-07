@@ -16,6 +16,18 @@ export function registerDataTabInputsController(runtime) {
       buttonId: "devLenDisplay",
       dropdownId: "devLenDropdown",
     },
+    // The `Stored at` value beside each length is the same control, so it opens
+    // the same list and takes the same lock and tooltip treatment.
+    originStoredLenSelect: {
+      wrapId: "originStoredLenWrap",
+      buttonId: "originStoredLenDisplay",
+      dropdownId: "originStoredLenDropdown",
+    },
+    devStoredLenSelect: {
+      wrapId: "devStoredLenWrap",
+      buttonId: "devStoredLenDisplay",
+      dropdownId: "devStoredLenDropdown",
+    },
   };
 
   let activeProjectIndex = -1;

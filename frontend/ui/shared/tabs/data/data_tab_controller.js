@@ -43,7 +43,7 @@ import { publishDataTabHostInputs } from "/ui/shared/tabs/data/data_tab_host_por
 import { wireDatasetHostBridge } from "/ui/shared/integrations/dataset_host_bridge.js";
 import { createDatasetRunController } from "/ui/shared/dataset/dataset_run_controller.js?v=20260905a";
 import { hasResultSelectionUpdates } from "/ui/shared/dataset/result_selection_update_report.js?v=20260725b";
-import { wireDatasetInputController } from "/ui/shared/tabs/data/data_tab_controls.js?v=20260820b";
+import { wireDatasetInputController } from "/ui/shared/tabs/data/data_tab_controls.js?v=20260906b";
 import { readDatasetInputQueryValues } from "/ui/shared/tabs/data/data_tab_query_inputs.js";
 import {
   applyDecimalPlacesToDatasetNumberFormat,
@@ -92,10 +92,10 @@ import "/ui/shared/integrations/zoom_bridge.js?v=20260715a";
 
 import { registerDataTabHostController } from "/ui/shared/tabs/data/data_tab_host_controller.js?v=20260905a";
 import { registerDataTabDetailsController } from "/ui/shared/tabs/data/data_tab_details_controller.js?v=20260824b";
-import { registerDataTabInputsController } from "/ui/shared/tabs/data/data_tab_inputs_controller.js?v=20260731b";
+import { registerDataTabInputsController } from "/ui/shared/tabs/data/data_tab_inputs_controller.js?v=20260906b";
 import { registerDataTabPreferencesController } from "/ui/shared/tabs/data/data_tab_preferences_controller.js?v=20260905a";
-import { registerDataTabRequestController } from "/ui/shared/tabs/data/data_tab_request_controller.js?v=20260906a";
-import { registerDataTabPersistenceController } from "/ui/shared/tabs/data/data_tab_persistence_controller.js?v=20260906a";
+import { registerDataTabRequestController } from "/ui/shared/tabs/data/data_tab_request_controller.js?v=20260906b";
+import { registerDataTabPersistenceController } from "/ui/shared/tabs/data/data_tab_persistence_controller.js?v=20260906b";
 
 const LS_DS_KEY = "arcrho_last_ds_id";
 const LS_FORM_KEY = "arcrho_tri_inputs";

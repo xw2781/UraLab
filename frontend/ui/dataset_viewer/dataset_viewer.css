@@ -254,6 +254,16 @@ body {
   height: var(--topbar-control-height);
 }
 
+/* The period the file is really held at sits beside the length it is shown at,
+   as ResQ's own Edit Triangle dialog puts them, so the two are read together
+   rather than one of them having to be remembered. */
+#datasetTopBar .lenStoredLabel {
+  font-size: 13px;
+  line-height: var(--topbar-control-height);
+  color: var(--muted);
+  white-space: nowrap;
+}
+
 #datasetTopBar .lenSelectDisplay {
   width: 100%;
   display: inline-flex;

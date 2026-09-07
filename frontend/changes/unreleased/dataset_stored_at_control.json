@@ -1,0 +1,13 @@
+{
+  "type": "feature",
+  "scope": "dataset",
+  "audience": "user",
+  "summary": "The Data tab now shows a \"Stored at\" value beside Origin Length and Development Length, and an empty hand-entered dataset can be told there to keep its figures at a finer period than it is shown at.",
+  "details": [
+    "The pair reads the way ResQ's own Edit Triangle dialog puts it: the period the dataset is shown at, and beside it the period its file is really kept at.",
+    "The origin \"Stored at\" is a dimmed readout, because the Origin Length control is what fixes it while the dataset is empty, exactly as in ResQ.",
+    "The development \"Stored at\" can be lowered while the dataset still holds nothing but blanks and zeros, so a triangle shown a year at a time can be kept month by month underneath. Lowering it leaves the grid on screen unchanged; the next save writes the finer file.",
+    "Once the dataset holds figures the control is dimmed and says why, and changing the length on screen while it is still empty moves the stored period with it, as ResQ does.",
+    "The hint that used to say a first save would fix the period is gone: the new value beside each control says it instead."
+  ]
+}

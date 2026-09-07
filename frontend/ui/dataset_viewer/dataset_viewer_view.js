@@ -144,6 +144,22 @@ export function mountDatasetViewer(container) {
                 <div id="originLenDropdown" class="datasetDropdown lenDropdown" role="listbox" aria-label="Origin Length options"></div>
                 <select id="originLenSelect" class="lenSelectNative" tabindex="-1" aria-hidden="true"></select>
               </div>
+              <span class="lenStoredLabel">Stored at:</span>
+              <div id="originStoredLenWrap" class="lenSelectWrap">
+                <button
+                  id="originStoredLenDisplay"
+                  class="lenSelectDisplay"
+                  type="button"
+                  aria-haspopup="listbox"
+                  aria-expanded="false"
+                  aria-controls="originStoredLenDropdown"
+                >
+                  <span class="lenSelectValue">12</span>
+                  <span class="lenSelectCaret" aria-hidden="true"></span>
+                </button>
+                <div id="originStoredLenDropdown" class="datasetDropdown lenDropdown" role="listbox" aria-label="Origin Stored at options"></div>
+                <select id="originStoredLenSelect" class="lenSelectNative" tabindex="-1" aria-hidden="true"></select>
+              </div>
             </div>
             <div class="topbar-input">
               <div id="devLenWrap" class="lenSelectWrap">
@@ -160,6 +176,22 @@ export function mountDatasetViewer(container) {
                 </button>
                 <div id="devLenDropdown" class="datasetDropdown lenDropdown" role="listbox" aria-label="Development Length options"></div>
                 <select id="devLenSelect" class="lenSelectNative" tabindex="-1" aria-hidden="true"></select>
+              </div>
+              <span class="lenStoredLabel">Stored at:</span>
+              <div id="devStoredLenWrap" class="lenSelectWrap">
+                <button
+                  id="devStoredLenDisplay"
+                  class="lenSelectDisplay"
+                  type="button"
+                  aria-haspopup="listbox"
+                  aria-expanded="false"
+                  aria-controls="devStoredLenDropdown"
+                >
+                  <span class="lenSelectValue">12</span>
+                  <span class="lenSelectCaret" aria-hidden="true"></span>
+                </button>
+                <div id="devStoredLenDropdown" class="datasetDropdown lenDropdown" role="listbox" aria-label="Development Stored at options"></div>
+                <select id="devStoredLenSelect" class="lenSelectNative" tabindex="-1" aria-hidden="true"></select>
               </div>
             </div>
           </div>

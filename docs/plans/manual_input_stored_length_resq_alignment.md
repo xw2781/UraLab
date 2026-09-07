@@ -1,6 +1,6 @@
 # Manual Input Triangles: Matching ResQ's Stored-Length Editing
 
-Status: Broken into 7 session-sized steps on 2026-09-06; step 1 landed the same day (1 of 7 done). The ResQ rules are established against the COM API and both design decisions are taken, so every step can run unattended.
+Status: Broken into 7 session-sized steps on 2026-09-06; steps 1 and 2 landed the same day (2 of 7 done). The ResQ rules are established against the COM API and both design decisions are taken, so every step can run unattended.
 Last updated: 2026-09-06.
 
 ## Progress
@@ -10,14 +10,14 @@ Plain-language tracking. The agent that finishes a step ticks its box, fills in 
 | # | Step | Done | Date | What changed for the user |
 | :--- | :--- | :--- | :--- | :--- |
 | 1 | An empty triangle can be told to store its development periods finer than it shows | [x] | 2026-09-06 | Saving a dataset that is still empty can now keep its figures monthly underneath a yearly view; the control to ask for that comes with the next step. |
-| 2 | The Data tab shows "Stored at" beside each length, and an empty triangle's development store can be lowered there | [ ] | | |
+| 2 | The Data tab shows "Stored at" beside each length, and an empty triangle's development store can be lowered there | [x] | 2026-09-06 | Each length in the Data tab now has a "Stored at" value beside it, and while a hand-entered dataset is still empty you can lower the development one so a yearly view keeps monthly figures underneath. |
 | 3 | Values saved at a coarser development view land in the stored cells at their ages | [ ] | | |
 | 4 | Typing, paste and links work when only the development view is coarser than the store | [ ] | | |
 | 5 | The export macro writes a hand-entered triangle to ResQ at its stored shape | [ ] | | |
 | 6 | A yearly view of a monthly triangle is pinned to ResQ's own numbers | [ ] | | |
 | 7 | The server components carry the change | [ ] | | |
 
-Overall: 1 of 7 steps done.
+Overall: 2 of 7 steps done.
 
 ## How agents work this plan
 
@@ -144,14 +144,14 @@ Steps 1→2 and 3→4 are ordered pairs. Steps 1 and 3 both edit the dataset sav
 
 **Goal.** The Data tab shows ResQ's layout: a dimmed `Stored at` value beside Origin Length, and a `Stored at` control beside Development Length that is live only while the dataset is empty and offers the factors of the current display length. Case 2 becomes possible from the UI.
 
-**Read first.** [FRONTEND_AGENT_GUIDELINES.md](../../frontend/FRONTEND_AGENT_GUIDELINES.md); the `arcrho-ui-design` skill; Decision 4 and ResQ rule 3; [dataset.md:106-109](../../frontend/docs/ui/dataset.md#L106-L109); [data_tab_request_controller.js:522-560](../../frontend/ui/shared/tabs/data/data_tab_request_controller.js#L522-L560) (the length ladder and its narrowing), [data_tab_persistence_controller.js:270-360](../../frontend/ui/shared/tabs/data/data_tab_persistence_controller.js#L270-L360) (the stored pair, the pending test, the hints) and the save payload built in `saveDatasetSidecarForCurrentContext` at [data_tab_persistence_controller.js:832](../../frontend/ui/shared/tabs/data/data_tab_persistence_controller.js#L832); the top-bar markup that holds `originLenSelect` in [dataset_viewer_view.js](../../frontend/ui/dataset_viewer/dataset_viewer_view.js) and [dfm.html](../../frontend/ui/method_pages/dfm/dfm.html); [dataset_length_lock.test.mjs:276-432](../../frontend/tests/dataset_length_lock.test.mjs#L276-L432). Memory notes: `frontend-node-test-suite`, `arcrho-dev-ui-cache-restart`, `theme-css-version-pins`.
+**Read first.** [FRONTEND_AGENT_GUIDELINES.md](../../frontend/FRONTEND_AGENT_GUIDELINES.md); the `arcrho-ui-design` skill; Decision 4 and ResQ rule 3; [dataset.md:106-109](../../frontend/docs/ui/dataset.md#L106-L109); [data_tab_request_controller.js:522-560](../../frontend/ui/shared/tabs/data/data_tab_request_controller.js#L522-L560) (the length ladder and its narrowing), [data_tab_persistence_controller.js:270-360](../../frontend/ui/shared/tabs/data/data_tab_persistence_controller.js#L270-L360) (the stored pair, the pending test, the hints) and the save payload built in `saveDatasetSidecarForCurrentContext` at [data_tab_persistence_controller.js:832](../../frontend/ui/shared/tabs/data/data_tab_persistence_controller.js#L832); the top-bar markup that holds `originLenSelect` in [dataset_viewer_view.js](../../frontend/ui/dataset_viewer/dataset_viewer_view.js) and [dfm.html](../../frontend/ui/method_pages/dfm/dfm.html); [dataset_length_lock.test.mjs:276-432](../../frontend/tests/dataset_length_lock.test.mjs#L276-L432). Also needed and added while working the step: the length-select change handlers and the deps list in [data_tab_controls.js](../../frontend/ui/shared/tabs/data/data_tab_controls.js) (where the new control's change is wired), the `LEN_DROPDOWN_CONFIG` ladder in [data_tab_inputs_controller.js:8-20](../../frontend/ui/shared/tabs/data/data_tab_inputs_controller.js#L8-L20), the top-bar control styling in [dataset_viewer.css](../../frontend/ui/dataset_viewer/dataset_viewer.css) and [dfm.css](../../frontend/ui/method_pages/dfm/dfm.css), the cache-version pins in [shared_tab_surfaces.test.mjs](../../frontend/tests/shared_tab_surfaces.test.mjs) and [color_theme.test.mjs](../../frontend/tests/color_theme.test.mjs), and [changes/README.md](../../frontend/changes/README.md) for the release fragment. Memory notes: `frontend-node-test-suite`, `arcrho-dev-ui-cache-restart`, `theme-css-version-pins`, `electron-ui-screenshot-check`.
 
 **Do.**
 
-- [ ] Add a `Stored at` value beside each length control in both hosts' top bars. The origin one is always read-only. The development one is a select of the factors of the current display length, drawn from the same `LEN_CHOICES` ladder, enabled only while the dataset holds no value (the existing pending test) and dimmed otherwise with the tooltip `Stored at can be changed only while the dataset is empty.`
-- [ ] A display-length change on an empty dataset resets both `Stored at` values to the display (rule 3); lowering the development one leaves the display alone.
-- [ ] The save sends `stored_development_length`; the load and the save response fill both values; the length-list narrowing keeps reading the stored pair.
-- [ ] Retire the `This dataset is still empty: its first save stores it at …` hint in favour of the new values; update [dataset.md](../../frontend/docs/ui/dataset.md) to describe the control.
+- [x] Add a `Stored at` value beside each length control in both hosts' top bars. The origin one is always read-only. The development one is a select of the factors of the current display length, drawn from the same `LEN_CHOICES` ladder, enabled only while the dataset holds no value (the existing pending test) and dimmed otherwise with the tooltip `Stored at can be changed only while the dataset is empty.`
+- [x] A display-length change on an empty dataset resets both `Stored at` values to the display (rule 3); lowering the development one leaves the display alone.
+- [x] The save sends `stored_development_length`; the load and the save response fill both values; the length-list narrowing keeps reading the stored pair.
+- [x] Retire the `This dataset is still empty: its first save stores it at …` hint in favour of the new values; update [dataset.md](../../frontend/docs/ui/dataset.md) to describe the control.
 
 **Tests.** [dataset_length_lock.test.mjs](../../frontend/tests/dataset_length_lock.test.mjs) gains: the origin `Stored at` is read-only; the development one offers the factors and is live only while empty; a display change on an empty dataset resyncs both; the save payload carries the field. The test that reads the stored period off the list is adjusted to the new layout.
 

@@ -18,9 +18,11 @@ export function registerDataTabPersistenceController(runtime) {
   const getDatasetRunDataFormat = defer("getDatasetRunDataFormat");
   const setLenSelectLock = defer("setLenSelectLock");
   const setLenSelectStoredLength = defer("setLenSelectStoredLength");
+  const setLenSelectDisplayLength = defer("setLenSelectDisplayLength");
   const setLenSelectHint = defer("setLenSelectHint");
   let notesContextKey = "", notesContextPayload = null, notesDirty = false, lastSavedNotesText = "", datasetNotesController = null, datasetSettingsDirty = false, sidecarContextKey = "", sidecarContextPayload = null, lastSavedDatasetSettings = null, sidecarSyncNonce = 0, datasetExternalLinksLoaded = false, datasetCloseConfirm = null, hostInputsPublished = false;
   let datasetExcelLinkCheckAbortController = null;
+  let storedDevelopmentChoice = 0, storedDevelopmentChoiceDisplay = 0;
   const datasetExcelLinkCheckedKeys = new Set();
   const {
     loadTemporaryNumberFormatSettings,
@@ -273,6 +275,10 @@ export function registerDataTabPersistenceController(runtime) {
     const source = payload && typeof payload === "object" ? payload : {};
     runtime.currentDatasetStoredOriginLength = Number(source.stored_origin_length) || 0;
     runtime.currentDatasetStoredDevelopmentLength = Number(source.stored_development_length) || 0;
+    // Whatever the sidecar now says is the answer, so any store the user had
+    // asked for and not yet saved is spent.
+    storedDevelopmentChoice = 0;
+    storedDevelopmentChoiceDisplay = 0;
   }
 
   function getStoredLengthPair() {
@@ -289,6 +295,61 @@ export function registerDataTabPersistenceController(runtime) {
   // the whole ladder stays open and the readout says so.
   function storedLengthIsPending() {
     return currentDatasetIsManualTriangleOrVector() && datasetValuesAreAllZero();
+  }
+
+  // ResQ lets an empty triangle be stored finer than it is shown, and moves the
+  // store with the display until a value is saved. The period the user asked
+  // for is remembered against the display length it was asked for at, so a
+  // later display change resets the store to the new display the way ResQ does.
+  // The two values themselves are declared with the rest of this controller's
+  // state, because the sidecar reader above clears them.
+  function chooseStoredDevelopmentLength(value) {
+    const requested = Number(value);
+    storedDevelopmentChoice = Number.isFinite(requested) && requested > 0 ? Math.trunc(requested) : 0;
+    storedDevelopmentChoiceDisplay = getCurrentLengthControlValues().development_length;
+  }
+
+  function getStoredDevelopmentLengthChoice() {
+    const display = getCurrentLengthControlValues().development_length;
+    if (
+      storedDevelopmentChoice > 0
+      && storedDevelopmentChoiceDisplay === display
+      && display % storedDevelopmentChoice === 0
+    ) return storedDevelopmentChoice;
+    // The sidecar's own store still stands while the display is the one it was
+    // saved at; past that the store follows the display.
+    const recorded = getStoredLengthPair().development_length;
+    const savedDisplay = Number(lastSavedDatasetSettings?.development_length) || 0;
+    if (recorded > 0 && savedDisplay === display && display % recorded === 0) return recorded;
+    return display;
+  }
+
+  // The shape the file will be held at once this save lands: the sidecar's own
+  // stored pair, except while a hand-entered dataset is still empty, when the
+  // length controls and the development `Stored at` decide it.
+  function getStoredLengthControlPair() {
+    if (!storedLengthIsPending()) return getStoredLengthPair();
+    return {
+      origin_length: getCurrentLengthControlValues().origin_length,
+      development_length: getStoredDevelopmentLengthChoice(),
+    };
+  }
+
+  // The one case a save states the store is a still-empty hand-entered
+  // triangle; everywhere else the sidecar keeps the period it already records,
+  // and a vector's store follows its own length control as ResQ's does.
+  function storedDevelopmentLengthForSave() {
+    if (isDfmDataTabHost() || !storedLengthIsPending() || currentDatasetIsVector()) return 0;
+    return getStoredDevelopmentLengthChoice();
+  }
+
+  // Asking for a finer store is a change Save has to carry even when nothing
+  // else on the tab moved.
+  function storedDevelopmentLengthIsDirty() {
+    const requested = storedDevelopmentLengthForSave();
+    if (!requested) return false;
+    const recorded = getStoredLengthPair().development_length;
+    return recorded > 0 && requested !== recorded;
   }
 
   function currentDatasetIsVector() {
@@ -345,24 +406,67 @@ export function registerDataTabPersistenceController(runtime) {
     setLenSelectStoredLength("devLenSelect", stored.development_length);
   }
 
-  function storedLengthHintText(length, pending) {
+  function storedLengthHintText(length) {
     const value = Number(length);
     if (!Number.isFinite(value) || value <= 0) return "";
-    return pending
-      ? `This dataset is still empty: its first save stores it at ${value}.`
-      : `This dataset is stored at ${value}.`;
+    return `This dataset is stored at ${value}.`;
   }
 
-  // The stored period reads off the list itself, where the lengths it rules out
-  // are muted; the trigger only repeats it for anyone hovering the control, and
-  // says so early while an empty dataset can still be fixed at any length.
-  function updateStoredLengthHints() {
+  const STORED_ORIGIN_LOCK_REASON = "The origin period is fixed by Origin Length while the dataset is empty.";
+  const STORED_DEVELOPMENT_LOCK_REASON = "Stored at can be changed only while the dataset is empty.";
+  const VECTOR_NO_DEVELOPMENT_REASON = "A vector has no development periods.";
+
+  // A `Stored at` control sits beside its length and offers the periods that
+  // divide it. It is dimmed rather than removed when it cannot be changed, so
+  // the strip keeps its shape and the period the file is held at is always on
+  // screen.
+  function applyStoredLenControl(selectId, { displayLength, value, enabled, reason, displayValue = "" }) {
+    setLenSelectDisplayLength(selectId, displayLength);
+    const shown = String(Number(value) > 0 ? Math.trunc(Number(value)) : displayLength);
+    setLenSelectValue(selectId, shown);
+    const select = document.getElementById(selectId);
+    if (select) {
+      select.disabled = !enabled;
+      select.title = enabled ? "" : reason;
+    }
+    setLenSelectLock(selectId, { locked: !enabled, displayValue: displayValue || shown, reason });
+  }
+
+  // The two `Stored at` controls carry the period the file is really held at.
+  // The origin one is never editable: as in ResQ, the Origin Length control
+  // fixes the origin store while the dataset is empty. The development one is
+  // live only while the dataset holds no value, which is the only time ResQ
+  // allows the store to move.
+  function updateStoredLengthControls() {
     const pending = storedLengthIsPending();
-    const source = pending ? getCurrentLengthControlValues() : getStoredLengthPair();
-    setLenSelectHint("originLenSelect", storedLengthHintText(source.origin_length, pending));
+    const vector = currentDatasetIsVector();
+    const display = getCurrentLengthControlValues();
+    const stored = getStoredLengthControlPair();
+
+    applyStoredLenControl("originStoredLenSelect", {
+      displayLength: display.origin_length,
+      value: stored.origin_length,
+      enabled: false,
+      reason: STORED_ORIGIN_LOCK_REASON,
+    });
+    applyStoredLenControl("devStoredLenSelect", {
+      displayLength: display.development_length,
+      value: stored.development_length,
+      enabled: pending && !vector && !isDfmDataTabHost(),
+      reason: vector ? VECTOR_NO_DEVELOPMENT_REASON : STORED_DEVELOPMENT_LOCK_REASON,
+      // A vector has no development dimension, so its store reads 0 beside the
+      // 0 its Development Length already shows.
+      displayValue: vector ? "0" : "",
+    });
+
+    // Hovering a length control still names the shape the file is held at, but
+    // only once that shape is settled: while the dataset is empty the `Stored
+    // at` control beside it is the live answer.
+    const recorded = getStoredLengthPair();
+    setLenSelectHint("originLenSelect", pending ? "" : storedLengthHintText(recorded.origin_length));
     setLenSelectHint(
       "devLenSelect",
-      currentDatasetIsVector() ? "" : storedLengthHintText(source.development_length, pending),
+      pending || vector ? "" : storedLengthHintText(recorded.development_length),
     );
   }
 
@@ -404,7 +508,7 @@ export function registerDataTabPersistenceController(runtime) {
     setLenSelectLock("devLenSelect", {
       locked: currentDatasetIsVector(),
       displayValue: "0",
-      reason: "A vector has no development periods.",
+      reason: VECTOR_NO_DEVELOPMENT_REASON,
     });
   }
 
@@ -464,7 +568,7 @@ export function registerDataTabPersistenceController(runtime) {
     updateManualDatasetModeControls();
     updateVectorDevelopmentLengthControl();
     applyStoredLengthChoices();
-    updateStoredLengthHints();
+    updateStoredLengthControls();
     notifyDatasetDirtyState();
   }
 
@@ -479,7 +583,11 @@ export function registerDataTabPersistenceController(runtime) {
       updateDatasetSaveUi();
       return;
     }
-    datasetSettingsDirty = !!lastSavedDatasetSettings && !sameDatasetSettings(getCurrentDatasetSettings(), lastSavedDatasetSettings);
+    datasetSettingsDirty = !!lastSavedDatasetSettings
+      && (
+        !sameDatasetSettings(getCurrentDatasetSettings(), lastSavedDatasetSettings)
+        || storedDevelopmentLengthIsDirty()
+      );
     updateDatasetSaveUi();
   }
 
@@ -502,7 +610,7 @@ export function registerDataTabPersistenceController(runtime) {
     setDatasetNumberFormatValue(normalized.number_format);
     refreshLenDropdowns();
     updateVectorDevelopmentLengthControl();
-    updateStoredLengthHints();
+    updateStoredLengthControls();
   }
 
   function invalidateDatasetContextLoads() {
@@ -856,6 +964,9 @@ export function registerDataTabPersistenceController(runtime) {
     const payload = {
       ...context,
       ...settings,
+      // The period the CSV is written at. Stated only while a hand-entered
+      // dataset is still empty, which is the one time it can move.
+      stored_development_length: storedDevelopmentLengthForSave() || null,
       notes: String(getNotesEditorElements().input?.value ?? ""),
       ...getManualInputDatasetValuePayload(),
       ...getDatasetExternalLinksPayload(),
@@ -1323,8 +1434,12 @@ export function registerDataTabPersistenceController(runtime) {
     getCurrentLengthControlValues,
     getStoredLengthPair,
     storedLengthIsPending,
+    chooseStoredDevelopmentLength,
+    getStoredDevelopmentLengthChoice,
+    getStoredLengthControlPair,
+    storedDevelopmentLengthForSave,
     applyStoredLengthChoices,
-    updateStoredLengthHints,
+    updateStoredLengthControls,
     datasetDisplayIsCoarserThanStored,
     datasetCoarserViewMessage,
     validateManualDatasetLengthChange,

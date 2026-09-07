@@ -33,6 +33,18 @@ const datasetViewerCss = await readFile(
   new URL("../ui/dataset_viewer/dataset_viewer.css", import.meta.url),
   "utf8",
 );
+const dataControlsSource = await readFile(
+  new URL("../ui/shared/tabs/data/data_tab_controls.js", import.meta.url),
+  "utf8",
+);
+const inputsControllerSource = await readFile(
+  new URL("../ui/shared/tabs/data/data_tab_inputs_controller.js", import.meta.url),
+  "utf8",
+);
+const dfmPageSource = await readFile(
+  new URL("../ui/method_pages/dfm/dfm.html", import.meta.url),
+  "utf8",
+);
 
 // The controller imports its siblings by their server-absolute `/ui/...` paths,
 // which Node cannot resolve. Only the tooltip binding is reached on the paths
@@ -129,7 +141,7 @@ class FakeSelect extends FakeElement {
 
 function buildLengthControlDom() {
   const elements = {};
-  for (const name of ["origin", "dev"]) {
+  for (const name of ["origin", "dev", "originStored", "devStored"]) {
     const wrap = new FakeElement();
     wrap.className = "lenSelectWrap";
     const button = new FakeElement("button");
@@ -171,6 +183,16 @@ async function createLengthControlRuntime() {
         wrapId: "devLenWrap",
         buttonId: "devLenDisplay",
         dropdownId: "devLenDropdown",
+      },
+      originStoredLenSelect: {
+        wrapId: "originStoredLenWrap",
+        buttonId: "originStoredLenDisplay",
+        dropdownId: "originStoredLenDropdown",
+      },
+      devStoredLenSelect: {
+        wrapId: "devStoredLenWrap",
+        buttonId: "devStoredLenDisplay",
+        dropdownId: "devStoredLenDropdown",
       },
     },
     createDatasetDependencyGuard: () => ({}),
@@ -379,9 +401,9 @@ test("the offered lengths follow the open dataset's stored period", () => {
   );
 });
 
-test("the stored period reads off the list, not a caption beside the control", () => {
-  // Nothing in the strip repeats the stored period any more: the list carries
-  // it, so the captions that used to sit beside the controls are gone.
+test("the stored period reads off the list and the Stored at control, not a caption", () => {
+  // Nothing in the strip repeats the stored period as a caption: the list and
+  // the `Stored at` control beside each length carry it.
   assert.doesNotMatch(datasetViewerViewSource, /lenStoredNote/u);
   assert.doesNotMatch(datasetViewerCss, /lenStoredNote/u);
   assert.match(datasetViewerCss, /#datasetTopBar \.lenDropdown \.lenOption\.is-unavailable/u);
@@ -391,13 +413,136 @@ test("the stored period reads off the list, not a caption beside the control", (
   assert.match(persistenceControllerSource, /setLenSelectStoredLength\("devLenSelect", stored\.development_length\);/u);
   assert.match(requestControllerSource, /for \(const value of LEN_CHOICES\) \{/u);
   assert.match(requestControllerSource, /option\.dataset\.unavailable = "1";/u);
-  // Hovering a control still names the shape the file is held at, and says so
-  // early while an empty dataset can still be fixed at any length.
+  // Hovering a length control still names the shape the file is held at, once
+  // that shape is settled.
   assert.match(persistenceControllerSource, /`This dataset is stored at \$\{value\}\.`/u);
-  assert.match(persistenceControllerSource, /`This dataset is still empty: its first save stores it at \$\{value\}\.`/u);
   assert.match(requestControllerSource, /wrap\.getAttribute\("data-locked-reason"\) \|\| wrap\.getAttribute\("data-hint"\)/u);
+  // While the dataset is still empty the `Stored at` control is the live
+  // answer, so the hint that used to say so has been retired.
+  assert.doesNotMatch(persistenceControllerSource, /its first save stores it at/u);
+  assert.match(persistenceControllerSource, /setLenSelectHint\("originLenSelect", pending \? "" : storedLengthHintText\(recorded\.origin_length\)\);/u);
   // A vector has no development dimension, so it shows no development hint.
-  assert.match(persistenceControllerSource, /currentDatasetIsVector\(\) \? "" : storedLengthHintText\(source\.development_length, pending\)/u);
+  assert.match(persistenceControllerSource, /pending \|\| vector \? "" : storedLengthHintText\(recorded\.development_length\)/u);
+});
+
+// ---------------------------------------------------------------------------
+// ResQ puts a `Stored at` spinner beside each length in its Edit Triangle
+// dialog. ArcRho now does the same: the origin one is a dimmed readout and the
+// development one can lower the store while the dataset is still empty.
+
+test("a Stored at control offers the periods that divide the length beside it", async () => {
+  const { runtime, elements, restore } = await createLengthControlRuntime();
+  try {
+    // The store may be finer than the display but never coarser, and it has to
+    // divide it evenly, which is the opposite of the display control's rule.
+    assert.deepEqual(runtime.lenChoicesForDisplayLength(12), [12, 6, 3, 1]);
+    assert.deepEqual(runtime.lenChoicesForDisplayLength(6), [6, 3, 1]);
+    assert.deepEqual(runtime.lenChoicesForDisplayLength(3), [3, 1]);
+    assert.deepEqual(runtime.lenChoicesForDisplayLength(1), [1]);
+    // Nothing known yet leaves the whole ladder open.
+    assert.deepEqual(runtime.lenChoicesForDisplayLength(0), [12, 6, 3, 1]);
+
+    const select = elements.devStoredLenSelect;
+    const muted = () => select.options.filter((option) => runtime.lenOptionIsUnavailable(option)).map((option) => option.value);
+
+    runtime.setLenSelectDisplayLength("devStoredLenSelect", 12);
+    assert.deepEqual(muted(), []);
+    assert.equal(runtime.setLenSelectValue("devStoredLenSelect", "1"), true);
+    assert.equal(select.value, "1");
+
+    // Showing the dataset at 6 rules out a store of 12, and the ladder itself
+    // keeps every rung.
+    runtime.setLenSelectDisplayLength("devStoredLenSelect", 6);
+    assert.deepEqual(select.options.map((option) => option.value), ["12", "6", "3", "1"]);
+    assert.deepEqual(muted(), ["12"]);
+    // A store of 1 still divides 6, so it is kept.
+    assert.equal(select.value, "1");
+
+    // A store that has just been ruled out lands on the displayed period, which
+    // is where an unlowered store sits.
+    runtime.setLenSelectValue("devStoredLenSelect", "3");
+    runtime.setLenSelectDisplayLength("devStoredLenSelect", 12);
+    runtime.setLenSelectValue("devStoredLenSelect", "12");
+    runtime.setLenSelectDisplayLength("devStoredLenSelect", 3);
+    assert.equal(select.value, "3");
+    assert.match(runtime.storedLenUnavailableReason(6), /shown at 6/u);
+    assert.equal(runtime.storedLenUnavailableReason(0), "");
+  } finally {
+    restore();
+  }
+});
+
+test("both hosts show a Stored at value beside each length", () => {
+  // The Dataset window draws the pair as two of the same length control.
+  assert.match(datasetViewerViewSource, /id="originStoredLenWrap"/u);
+  assert.match(datasetViewerViewSource, /id="originStoredLenSelect"/u);
+  assert.match(datasetViewerViewSource, /id="devStoredLenWrap"/u);
+  assert.match(datasetViewerViewSource, /id="devStoredLenSelect"/u);
+  assert.equal((datasetViewerViewSource.match(/class="lenStoredLabel">Stored at:/gu) || []).length, 2);
+  assert.match(datasetViewerCss, /#datasetTopBar \.lenStoredLabel \{/u);
+  // The DFM Data tab hosts the same two controls in its own spinner shape.
+  assert.match(dfmPageSource, /data-target="originStoredLenSelect"/u);
+  assert.match(dfmPageSource, /data-target="devStoredLenSelect"/u);
+  assert.equal((dfmPageSource.match(/class="lenStoredLabel">Stored at:/gu) || []).length, 2);
+  // Both are the shared length control, so they take the same list, lock and
+  // tooltip treatment rather than a second implementation.
+  assert.match(inputsControllerSource, /originStoredLenSelect: \{\s*wrapId: "originStoredLenWrap",/u);
+  assert.match(inputsControllerSource, /devStoredLenSelect: \{\s*wrapId: "devStoredLenWrap",/u);
+});
+
+test("the origin store is read-only and the development store is live only while empty", () => {
+  // As in ResQ, the Origin Length control fixes the origin store while the
+  // dataset is empty, so its readout is never editable.
+  assert.match(
+    persistenceControllerSource,
+    /applyStoredLenControl\("originStoredLenSelect", \{[\s\S]*?enabled: false,/u,
+  );
+  assert.match(persistenceControllerSource, /The origin period is fixed by Origin Length while the dataset is empty\./u);
+  // The development store moves only while the dataset holds no value, which is
+  // the one time ResQ allows it.
+  assert.match(
+    persistenceControllerSource,
+    /applyStoredLenControl\("devStoredLenSelect", \{[\s\S]*?enabled: pending && !vector && !isDfmDataTabHost\(\),/u,
+  );
+  assert.match(persistenceControllerSource, /Stored at can be changed only while the dataset is empty\./u);
+  // A control that cannot be changed is dimmed in place rather than removed, so
+  // the period the file is held at is always on screen.
+  assert.match(persistenceControllerSource, /setLenSelectLock\(selectId, \{ locked: !enabled, displayValue: displayValue \|\| shown, reason \}\);/u);
+  // A vector has no development dimension, so its store reads 0 beside the 0 on
+  // its Development Length.
+  assert.match(persistenceControllerSource, /displayValue: vector \? "0" : "",/u);
+});
+
+test("an empty dataset's store follows the display until the user lowers it", () => {
+  // ResQ moves an empty triangle's store with its display, so a choice is
+  // remembered only against the display length it was made at.
+  assert.match(persistenceControllerSource, /function chooseStoredDevelopmentLength\(value\)/u);
+  assert.match(
+    persistenceControllerSource,
+    /storedDevelopmentChoiceDisplay = getCurrentLengthControlValues\(\)\.development_length;/u,
+  );
+  assert.match(persistenceControllerSource, /storedDevelopmentChoiceDisplay === display/u);
+  // A fresh sidecar answer spends any store the user had asked for.
+  assert.match(persistenceControllerSource, /storedDevelopmentChoice = 0;\s*storedDevelopmentChoiceDisplay = 0;/u);
+  // Lowering the store leaves the display alone: no length is rewritten and no
+  // reload is scheduled from that control.
+  assert.match(
+    dataControlsSource,
+    /devStoredSel\.addEventListener\("change", \(\) => \{\s*chooseStoredDevelopmentLength\(devStoredSel\.value\);\s*if \(typeof refreshDatasetSettingsDirty === "function"\) refreshDatasetSettingsDirty\(\);\s*devStoredSel\.blur\(\);\s*\}\);/u,
+  );
+});
+
+test("the save states the period the dataset's file is written at", () => {
+  // Only a still-empty hand-entered dataset states a store; everywhere else the
+  // sidecar keeps the period it already records.
+  assert.match(persistenceControllerSource, /function storedDevelopmentLengthForSave\(\)/u);
+  assert.match(
+    persistenceControllerSource,
+    /if \(isDfmDataTabHost\(\) \|\| !storedLengthIsPending\(\) \|\| currentDatasetIsVector\(\)\) return 0;/u,
+  );
+  assert.match(persistenceControllerSource, /stored_development_length: storedDevelopmentLengthForSave\(\) \|\| null,/u);
+  // Asking for a finer store is a change Save has to carry on its own.
+  assert.match(persistenceControllerSource, /\|\| storedDevelopmentLengthIsDirty\(\)/u);
 });
 
 test("a coarser view of a dataset is read-only and says why", () => {
