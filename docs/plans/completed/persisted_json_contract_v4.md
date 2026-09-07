@@ -1,7 +1,7 @@
 # Persisted JSON Contract v4: One Naming Convention, Fewer Fields, One Audit Policy
 
-Status: In progress — Steps 1-5 landed (1-3 on 2026-08-22, 4 and 5 on 2026-08-23 as `d432ae8` and `fcbfaeb`). Step 6 is next and converts `NJ_Annual_Prod_202605_Fake` only; `/code-review ultra` is deferred to after Step 7 and is a person's to start (see Handoff under Step 4)
-Last updated: 2026-08-23
+Status: Implemented 2026-09-06 — Steps 1-5 landed 2026-08-22/23 (`d432ae8`, `fcbfaeb`), Step 6 converted `NJ_Annual_Prod_202605_Fake` only (`d8b4baf`, the other 36 projects are to be re-imported from ResQ by hand), and Step 7 shipped the same day: Engine, Bridge and Gateway redeployed, macros republished, frontend release 1.3.3 published with the breaking-change note. Closed 2026-09-06 by decision: the `/code-review ultra` pass is dropped, and the release is not marked mandatory because every user is assumed to run the latest app version at all times.
+Last updated: 2026-09-06
 
 ## Progress Checklist
 
@@ -61,7 +61,7 @@ One box per task, in the order the work must land. Each step is its own commit; 
 - [x] Re-create the Step 1 proof harness against every method file, with the upgrade in front of it: **554 of 554 convertible methods convert, and all 554 are fixed points** — writing the converted payload with `persisted_json_text`, reading that text back and normalizing again reproduces it byte for byte. By kind: 345 DFM, 116 Result Selection, 63 BF, 16 Cape Cod, 8 BSSR, 6 BSCRA. The other 4 are the retired-format BF files, left alone with their notes read out. Bootstrap has no instance in this project, so its contract is proved by its unit tests only.
 - [x] Verify no reader of the old shape remains (grep for every old key across `python-api/`, `frontend/`, `server-components/`). Last readers removed: `sync_session.py` and `export_reserving_class_to_resq.py` (macro 1.1.0, 1.0.0 archived) now derive ResQ codes from `method_type` / `data_format`; `dataset_service.py` hydrates a dependent's formula from the Dataset Type only; `dataset_service` / `result_selection_service` no longer write `user` or `data_format_code`; `catalog.py` no longer reads `formula` off sidecars. Remaining hits are in-memory ResQ payloads, archived macro backups, and UI labels.
 - [x] Commit. Landed as `d432ae8` on `main`, 2026-08-23.
-- [ ] Run `/code-review ultra`. **Deferred 2026-08-23 to after Steps 6 and 7,** so one review covers the whole change including the conversion script. It is user-triggered and no agent can start it. There is no branch to diff — every v4 commit sits on `main` and is already pushed — so it needs an explicit path target, contracts under `python-api/src/arcrho_api/` first.
+- [~] ~~Run `/code-review ultra`.~~ **Dropped 2026-09-06 by decision.** It had been deferred on 2026-08-23 to after Steps 6 and 7 so one review would cover the whole change; with the conversion applied, every component deployed and three further releases shipped without a v4 fault, the review is no longer required.
 
 ### Handoff — how steps 4 and 5 were built (2026-08-22 to 2026-08-23)
 
@@ -141,8 +141,8 @@ Nothing — Steps 4 and 5 are committed (`d432ae8`, `fcbfaeb`) and the review is
 
 - [x] Rebuild and deploy Engine, Bridge and Gateway (bundled sources carry the contracts — Trap 4); check the bridge auto-create setting afterwards. Done 2026-08-23; `auto_create_instance` was already true and the Bridge came up on its own. The deploy first had to be unblocked twice: the forced service stop left heartbeats the Engine deploy waits on, and the listener was resetting the working clone — it now owns `E:\XWSpace\Repos\ArcRho-buildbot` and ticks itself on the Server PC (`a97d16b9`, `689e5dbe`, `31229fbb`).
 - [x] Republish the active macros to the shared library (`publish_macro_library.py`). Done 2026-08-23: six published including `export_reserving_class_to_resq.py` v1.1.0, which is the one this work changed. Two skipped on a version match are byte-identical to the library copy once line endings are normalized.
-- [ ] Build and force the frontend release; confirm an old client cannot open a converted workspace silently.
-- [ ] Update `Status:` at the top of this document to Implemented, with the date.
+- [x] Build the frontend release. Done 2026-08-23 as ArcRho 1.3.3, whose release notes carry the breaking-change entry from `persisted_json_contract_v4.json`; 1.4.0, 1.4.1 and 1.4.2 have shipped since. **Forcing it was dropped 2026-09-06 by decision:** the release was published without the `mandatory: true` marker the updater looks for, and none of the later releases carry it either, because every user is assumed to run the latest app version at all times. The old-client check is moot under the same assumption.
+- [x] Update `Status:` at the top of this document to Implemented, with the date. Done 2026-09-06.
 
 ## Summary
 

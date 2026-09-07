@@ -4,7 +4,7 @@
 
 Current DFM methods use `json_format = arcrho-dfm-v4`. The payload is a complete, location-independent snapshot that can render every DFM tab without reopening an Input Triangle, Ratio Basis dataset, CSV, sidecar, or reserving-class index.
 
-v4 is the shared contract described in `docs/plans/persisted_json_contract_v4.md`: every key is `snake_case` at every depth, every timestamp is UTC with millisecond precision and a `Z`, and every fingerprint is `sha256:` plus sixteen hex characters. There is no legacy fallback. A file written before v4 — `arcrho-dfm-method-by-tab-v2` or anything else — is rejected outright and must be converted by `tools/migrate_persisted_json_v4.py` before a v4 build opens it.
+v4 is the shared contract described in `docs/plans/completed/persisted_json_contract_v4.md`: every key is `snake_case` at every depth, every timestamp is UTC with millisecond precision and a `Z`, and every fingerprint is `sha256:` plus sixteen hex characters. There is no legacy fallback. A file written before v4 — `arcrho-dfm-method-by-tab-v2` or anything else — is rejected outright and must be converted by `tools/migrate_persisted_json_v4.py` before a v4 build opens it.
 
 A v4 open reads only:
 

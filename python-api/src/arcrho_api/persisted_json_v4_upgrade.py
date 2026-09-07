@@ -8,7 +8,7 @@ kind; the caller normalizes it through the canonical contract module for that
 kind and writes it with ``arcrho_api.io.persisted_json_text``, so a converted
 file is by construction identical to what a fresh v4 save writes.
 
-Rules applied (``docs/plans/persisted_json_contract_v4.md``):
+Rules applied (``docs/plans/completed/persisted_json_contract_v4.md``):
 
 1. ``snake_case`` keys at every depth.
 2. Every file carries a ``json_format`` stamped ``-v4``.

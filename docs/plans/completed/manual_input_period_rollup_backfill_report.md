@@ -62,7 +62,7 @@ that predate this work — 2,927 of them carry no `json_format` stamp at all, an
 others are missing `status`, `show_subtotal`, or the two dependency lists. The
 backfill therefore checks only the period-length rule it owns, counts the rest,
 and leaves them to `tools/migrate_persisted_json_v4.py` (step 6 of
-[persisted_json_contract_v4.md](../persisted_json_contract_v4.md), still open),
+[persisted_json_contract_v4.md](persisted_json_contract_v4.md), which by decision converted only `NJ_Annual_Prod_202605_Fake`),
 which fills exactly those fields. The most common shortfalls:
 
 | Count | Missing |

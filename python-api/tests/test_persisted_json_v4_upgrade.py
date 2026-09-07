@@ -1,4 +1,4 @@
-"""The pre-v4 upgrade the conversion script runs (docs/plans/persisted_json_contract_v4.md).
+"""The pre-v4 upgrade the conversion script runs (docs/plans/completed/persisted_json_contract_v4.md).
 
 ``arcrho_api.persisted_json_v4_upgrade`` is the only module that still knows
 the old spellings, so it is also the only place these rules can be pinned.

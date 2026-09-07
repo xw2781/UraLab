@@ -1,4 +1,4 @@
-"""The one persisted timestamp form (docs/plans/persisted_json_contract_v4.md, rule 3)."""
+"""The one persisted timestamp form (docs/plans/completed/persisted_json_contract_v4.md, rule 3)."""
 
 from __future__ import annotations
 
