@@ -5,7 +5,7 @@ metadata:
   node_type: memory
   type: feedback
   originSessionId: 49fe14c4-94ee-453f-a0ac-d42ea1b6f43e
-  modified: 2026-09-06T14:08:16.197Z
+  modified: 2026-09-07T00:00:00.000Z
 ---
 
 No Python interpreter on this machine has `pytest` installed — not `C:\Program Files\Python310`, not `Python314`, and none of the `server-components/venvs/*` environments. To run `python-api/tests`, install it into a throwaway directory **inside the repo** and put that on `PYTHONPATH`:
@@ -30,5 +30,11 @@ Better on the Client PC (2026-08-17): the user-scoped interpreter `py -3.10` (`C
 On `E:\XWSpace\Repos\ArcRho` under `xwei.PRCINS` (2026-08-27, corrected): the system `C:\Program Files\Python310\python.exe` (3.10.6) does have fastapi, pydantic, pandas, numpy and pywin32 — only pytest is missing — so frontend service tests run with `cd frontend/tests && "C:\Program Files\Python310\python.exe" -m unittest test_result_selection_service` (module names, from the tests folder so the workspace stub imports). `python` (3.14) plus the repo-local `.pytest-tools` on `PYTHONPATH` runs the python-api suites. Frontend test runs can leave `tmp*` folders at the repo root; delete them before committing.
 
 Client PC clone, 2026-09-06: neither `C:\Program Files\Python310` nor `py -3.10` was on the Bash-tool PATH (only `Python313`, no pandas), but `server-components/venvs/arcrho_engine/Scripts/python.exe` (3.10.11, pandas + fastapi) runs everything: `cd python-api && PYTHONPATH=../.pytest-tools <engine python> -m pytest tests/...` for python-api (the repo-local `.pytest-tools` is present there), and `cd frontend/tests && <engine python> -m unittest test_x` for frontend. Pre-existing failures that day, confirmed in a detached HEAD worktree: `test_resq_strict_extraction` ×2 (Cape Cod strict read of `PercentageDevelopedValues`), `test_resq_data_migration_graph::test_refresh_preserves_result_selection_precedent_strings` (precedents are dicts now), and `frontend/tests/test_bootstrap_service::test_saved_method_embeds_the_dfm_snapshot_and_a_simulation_summary` (rounding). `test_dfm_service` can throw a one-off `WinError 5` on a sidecar rename; rerun before blaming a change. The Edit tool can leave a file at LF while the rest of the working copy is CRLF (git warns "LF will be replaced by CRLF"); convert it back before finishing.
+
+Client PC, 2026-09-07: `py -3.10` is back on the Bash-tool PATH
+(`C:\Users\xwei\AppData\Local\Programs\Python\Python310`, with fastapi + pandas), and there is no
+`server-components/venvs` folder in this clone at all - a Glob for `**/Scripts/python.exe` finds nothing,
+and the sandbox denies `ls` of that path, so do not hunt for a venv. Frontend service tests:
+`cd frontend/tests && py -3.10 -m unittest test_x test_y` (module names, from the tests folder).
 
 **Module order used to pollute `python-api/tests` (2026-08-29, resolved 2026-09-01).** `test_import_resq_reserving_classes_macro` once failed 3 of 13 tests when run after other `test_resq_*` modules, because an earlier module put `python-api/migration` on `sys.path` and the macro's `import resq_data_migration` fallback then found the real 17-entry `RC_PATH`. Since macro v1.6.0 (2026-09-01) the batch macro carries its own hard-coded `RC_PATHS` list and never imports the migration module, so that order dependence is gone (16/16 alone with `py -3.10 -m unittest`). `server-components/tests/test_bridge_import_request_protocol.test_client_delegates_full_import_to_the_canonical_runner` still fails at HEAD (the client now passes `resq_credentials` the test does not expect).

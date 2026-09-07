@@ -5,7 +5,7 @@ metadata:
   node_type: memory
   type: project
   originSessionId: 70ce39fb-ac39-4edd-a4ac-59ca01231bb8
-  modified: 2026-09-02T16:23:05.063Z
+  modified: 2026-09-07T00:00:00.000Z
 ---
 
 `frontend/package.json` has no `test` script. Run the suite from `frontend/` with the
@@ -71,6 +71,15 @@ real helper to the patched module through `globalThis` (see `tests/dfm_round_for
 and `git worktree remove` fails with "Permission denied"/"in use" while the PowerShell tool's
 persistent working directory is still inside the worktree — `Set-Location` back to the repo
 root first.
+
+Client PC, 2026-09-07 at HEAD 6b038382: a detached-worktree baseline ran 1028 tests with 12 failures
+(the usual cast plus `home_shortcuts`, `dev_window_frame`, the PI refresh icon, and the 3 table-summary
+tests). `changed theme and chart owners are reached through current cache-version chains` failed at that
+baseline for a real reason this time, not the old flake: it pins
+`project_settings.js?v=20260903live1`, a stamp the HTML no longer carries. `installer_progress_patcher`
+fails only in the worktree (it needs build files the worktree lacks), so it is the one baseline failure
+that disappears in the real tree. Copying `frontend/node-portable` into the worktree is enough to run it
+there; a junction is not required.
 
 **Why:** the suite is not green, so a failure list alone does not tell you whether a change
 broke something. **How to apply:** take a baseline with `git worktree add <tmp> HEAD` and run
