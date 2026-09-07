@@ -417,16 +417,12 @@ test("the stored period reads off the list and the Stored at control, not a capt
   assert.match(persistenceControllerSource, /setLenSelectStoredLength\("devLenSelect", stored\.development_length\);/u);
   assert.match(requestControllerSource, /for \(const value of LEN_CHOICES\) \{/u);
   assert.match(requestControllerSource, /option\.dataset\.unavailable = "1";/u);
-  // Hovering a length control still names the shape the file is held at, once
-  // that shape is settled.
-  assert.match(persistenceControllerSource, /`This dataset is stored at \$\{value\}\.`/u);
-  assert.match(requestControllerSource, /wrap\.getAttribute\("data-locked-reason"\) \|\| wrap\.getAttribute\("data-hint"\)/u);
-  // While the dataset is still empty the `Stored at` control is the live
-  // answer, so the hint that used to say so has been retired.
+  // A length control carries no hover hint: the `Stored at` value beside it is
+  // the answer, and the only tooltip left is the reason a control is locked.
+  assert.doesNotMatch(persistenceControllerSource, /This dataset is stored at/u);
   assert.doesNotMatch(persistenceControllerSource, /its first save stores it at/u);
-  assert.match(persistenceControllerSource, /setLenSelectHint\("originLenSelect", pending \? "" : storedLengthHintText\(recorded\.origin_length\)\);/u);
-  // A vector has no development dimension, so it shows no development hint.
-  assert.match(persistenceControllerSource, /pending \|\| vector \? "" : storedLengthHintText\(recorded\.development_length\)/u);
+  assert.doesNotMatch(requestControllerSource, /data-hint/u);
+  assert.match(requestControllerSource, /attachArcrhoTooltip\(button, \(\) => wrap\.getAttribute\("data-locked-reason"\) \|\| ""\);/u);
 });
 
 // ---------------------------------------------------------------------------
@@ -595,6 +591,14 @@ test("a coarser development view is editable and says what a save there does", (
   assert.match(runControllerSource, /datasetCoarseDevelopmentNote = \(\) => "",/u);
   assert.match(runControllerSource, /setStatus\(datasetCoarseDevelopmentNote\(\) \|\| meta \|\| "Ready"\);/u);
   assert.match(hostControllerSource, /datasetCoarseDevelopmentNote,/u);
+  // A dataset opened from Project Instance is asked for at the shape its
+  // sidecar shows it at, so a hand-entered triangle stored finer than it is
+  // displayed opens at the saved display, with the same sentence on the line.
+  assert.match(hostControllerSource, /at_display_shape: true,/u);
+  assert.match(
+    hostControllerSource,
+    /setStatus\(datasetCoarseDevelopmentNote\(\) \|\| \[path, datasetName\]\.filter\(Boolean\)\.join\(" \| "\) \|\| "Ready"\);/u,
+  );
 });
 
 test("a vector keeps its one Period wording and has no development view to relax", () => {

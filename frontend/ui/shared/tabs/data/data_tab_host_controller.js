@@ -692,6 +692,9 @@ export function registerDataTabHostController(runtime) {
       development_length: devLen,
       cumulative,
       calendar,
+      // The window opens at the shape the sidecar saved, so a hand-entered
+      // dataset stored finer than it is shown arrives already rolled up.
+      at_display_shape: true,
     });
     if (!response.ok || response.data?.ok === false) {
       const message = String(response.data?.detail || response.data?.error || `Dataset cache load failed (${response.status}).`);
@@ -720,7 +723,9 @@ export function registerDataTabHostController(runtime) {
     recordDatasetBrowsingHistory({ project, path, tri: datasetName });
     const meta = document.getElementById("dsMeta");
     if (meta) meta.textContent = `id=${data.id} | origins=${state.headerLabels.length} | dev=${state.devHeaderLabels.length} | mtime=${data.mtime}`;
-    setStatus([path, datasetName].filter(Boolean).join(" | ") || "Ready");
+    // The same sentence the run path shows while a coarser development view
+    // is up, since a dataset opened this way can arrive at one.
+    setStatus(datasetCoarseDevelopmentNote() || [path, datasetName].filter(Boolean).join(" | ") || "Ready");
     return { ok: true, data };
   }
 

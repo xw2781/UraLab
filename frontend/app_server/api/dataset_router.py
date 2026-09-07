@@ -184,6 +184,7 @@ def load_dataset_cache(req: DatasetCacheLoadRequest) -> Dict[str, Any]:
             "development_length": req.development_length,
             "cumulative": req.cumulative,
             "calendar": req.calendar,
+            "at_display_shape": req.at_display_shape,
         },
         local=lambda: dataset_service.load_cached_dataset_values(
             req.project_name,
@@ -194,6 +195,7 @@ def load_dataset_cache(req: DatasetCacheLoadRequest) -> Dict[str, Any]:
             development_length=req.development_length,
             cumulative=req.cumulative,
             calendar=req.calendar,
+            at_display_shape=req.at_display_shape,
         ),
         finalize=_adopt,
     )

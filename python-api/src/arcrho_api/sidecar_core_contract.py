@@ -224,6 +224,24 @@ def stored_lengths(payload: Mapping[str, Any]) -> tuple[int, int]:
     )
 
 
+def display_lengths(payload: Mapping[str, Any]) -> tuple[int, int]:
+    """The ``(origin, development)`` months per period *payload* is shown at.
+
+    The display-side twin of :func:`stored_lengths`: a reader that opens a
+    dataset at the shape it was saved at asks here, so which field a format
+    carries stays written in one place. A vector reports its period on both
+    axes; a value that is missing or unusable reads ``0``.
+    """
+
+    if is_vector_format(payload.get("data_format")):
+        period = _stored_months(payload.get(SIDECAR_DISPLAY_PERIOD_FIELD))
+        return period, period
+    return (
+        _stored_months(payload.get(SIDECAR_DISPLAY_ORIGIN_FIELD)),
+        _stored_months(payload.get(SIDECAR_DISPLAY_DEVELOPMENT_FIELD)),
+    )
+
+
 def _stored_months(value: Any) -> int:
     try:
         months = int(value)

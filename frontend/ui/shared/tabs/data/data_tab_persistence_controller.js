@@ -19,7 +19,6 @@ export function registerDataTabPersistenceController(runtime) {
   const setLenSelectLock = defer("setLenSelectLock");
   const setLenSelectStoredLength = defer("setLenSelectStoredLength");
   const setLenSelectDisplayLength = defer("setLenSelectDisplayLength");
-  const setLenSelectHint = defer("setLenSelectHint");
   let notesContextKey = "", notesContextPayload = null, notesDirty = false, lastSavedNotesText = "", datasetNotesController = null, datasetSettingsDirty = false, sidecarContextKey = "", sidecarContextPayload = null, lastSavedDatasetSettings = null, sidecarSyncNonce = 0, datasetExternalLinksLoaded = false, datasetCloseConfirm = null, hostInputsPublished = false;
   let datasetExcelLinkCheckAbortController = null;
   let storedDevelopmentChoice = 0, storedDevelopmentChoiceDisplay = 0;
@@ -422,12 +421,6 @@ export function registerDataTabPersistenceController(runtime) {
     setLenSelectStoredLength("devLenSelect", stored.development_length);
   }
 
-  function storedLengthHintText(length) {
-    const value = Number(length);
-    if (!Number.isFinite(value) || value <= 0) return "";
-    return `This dataset is stored at ${value}.`;
-  }
-
   const STORED_ORIGIN_LOCK_REASON = "The origin period is fixed by Origin Length while the dataset is empty.";
   const STORED_DEVELOPMENT_LOCK_REASON = "Stored at can be changed only while the dataset is empty.";
   const VECTOR_NO_DEVELOPMENT_REASON = "A vector has no development periods.";
@@ -474,16 +467,6 @@ export function registerDataTabPersistenceController(runtime) {
       // 0 its Development Length already shows.
       displayValue: vector ? "0" : "",
     });
-
-    // Hovering a length control still names the shape the file is held at, but
-    // only once that shape is settled: while the dataset is empty the `Stored
-    // at` control beside it is the live answer.
-    const recorded = getStoredLengthPair();
-    setLenSelectHint("originLenSelect", pending ? "" : storedLengthHintText(recorded.origin_length));
-    setLenSelectHint(
-      "devLenSelect",
-      pending || vector ? "" : storedLengthHintText(recorded.development_length),
-    );
   }
 
   function validateManualDatasetLengthChange() {

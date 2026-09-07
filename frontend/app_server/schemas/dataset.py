@@ -65,6 +65,9 @@ class DatasetCacheLoadRequest(BaseModel):
     development_length: Optional[int] = Field(None, ge=1)
     cumulative: bool = True
     calendar: bool = False
+    # A window opening the dataset asks for it at the shape its sidecar shows
+    # it at; a method reading its inputs takes the file's own rows.
+    at_display_shape: bool = False
 
 
 class DatasetCalculatedPreviewRequest(BaseModel):

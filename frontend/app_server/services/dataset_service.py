@@ -26,7 +26,12 @@ from arcrho_api.sidecar_audit_contract import (
     append_audit_entry,
     normalize_audit_log,
 )
-from arcrho_api.sidecar_core_contract import finalize_sidecar, stored_length_fields, stored_lengths
+from arcrho_api.sidecar_core_contract import (
+    display_lengths,
+    finalize_sidecar,
+    stored_length_fields,
+    stored_lengths,
+)
 from arcrho_api.timestamps import utc_now_text
 from arcrho_api.triangle_rollup import rollup_triangle, scatter_triangle
 from app_server import config
@@ -1854,7 +1859,19 @@ def load_cached_dataset_values(
     development_length: int | None = None,
     cumulative: bool = True,
     calendar: bool = False,
+    at_display_shape: bool = False,
 ) -> Dict[str, Any]:
+    """Read a dataset's CSV with the sidecar settings a window needs beside it.
+
+    ``origin_length`` / ``development_length`` in the response are the shape
+    of the ``values`` returned, and the ``stored_*`` pair is the shape the
+    dataset's own file is held at. By default the values are the file's own
+    rows, which is what a method reading its inputs wants. With
+    ``at_display_shape`` a hand-entered dataset shown coarser than it is
+    stored is rolled up to the display shape its sidecar saved, the view the
+    Dataset window opens at, built from the stored CSV the same way a run
+    builds it and never written beside it.
+    """
     p, rc, ds = _require_dataset_fields(project_name, reserving_class, dataset_name)
     sidecar_path = _get_dataset_sidecar_path(p, rc, ds)
     sidecar = _read_dataset_sidecar(sidecar_path)
@@ -1921,7 +1938,16 @@ def load_cached_dataset_values(
     sidecar_origin_length, sidecar_development_length = stored_lengths(sidecar)
     resolved_origin_length = _int_or_default(parsed_name.get("origin_length") or sidecar_origin_length, max(1, len(values)))
     resolved_development_length = _int_or_default(parsed_name.get("development_length") or sidecar_development_length, max(1, len(values[0]) if values else 1))
+    if not (sidecar_origin_length and sidecar_development_length):
+        sidecar_origin_length, sidecar_development_length = resolved_origin_length, resolved_development_length
     dataset_id = "arcrhotri_" + hashlib.sha1(csv_path.encode("utf-8")).hexdigest()[:16]
+    handle_path = csv_path
+    rolled_up = False
+    if at_display_shape:
+        view = _display_view_of_stored_values(p, ds, sidecar, csv_path, values)
+        if view is not None:
+            values, resolved_origin_length, resolved_development_length, dataset_id, handle_path = view
+            rolled_up = True
     origin_labels, _ = _validate_origin_labels(
         sidecar.get("origin_labels"),
         len(values),
@@ -1946,6 +1972,20 @@ def load_cached_dataset_values(
     if len(development_labels) != column_count:
         if is_vector and column_count == 1:
             development_labels = ["Ultimate"]
+        elif rolled_up:
+            # A rolled-up view sits on the project's own period grid, so its
+            # columns take the project's headers the way the run path lays
+            # them over the grid: the headers may run past the valuation date
+            # the view stops at, so they are cut to the columns there are.
+            development_future = _CACHED_LOAD_HYDRATION_EXECUTOR.submit(
+                _rolled_up_development_labels,
+                dataset_id,
+                csv_path,
+                p,
+                resolved_development_length,
+                column_count,
+                calendar=bool(sidecar.get("calendar")),
+            )
         elif str(sidecar.get("source_kind") or "").strip().casefold() == "engine":
             development_future = _CACHED_LOAD_HYDRATION_EXECUTOR.submit(
                 _resolve_development_labels,
@@ -1974,7 +2014,7 @@ def load_cached_dataset_values(
         file_mtime = os.stat(csv_path).st_mtime
     except OSError:
         file_mtime = None
-    register_dataset_handle(dataset_id, csv_path)
+    register_dataset_handle(dataset_id, handle_path)
     return {
         "ok": True,
         "id": dataset_id,
@@ -1985,6 +2025,12 @@ def load_cached_dataset_values(
         "data_format": data_format,
         "origin_length": resolved_origin_length,
         "development_length": resolved_development_length,
+        # The stored pair rides with every load, as it does with the sidecar
+        # load and save, so the window knows how fine the file under the
+        # shape it shows really is.
+        "stored_period_length": sidecar_origin_length if is_vector else None,
+        "stored_origin_length": sidecar_origin_length,
+        "stored_development_length": sidecar_development_length,
         "origin_labels": origin_labels,
         "dev_labels": development_labels,
         "mask": [[value is not None for value in row] for row in values],
@@ -2009,10 +2055,89 @@ def load_cached_dataset_values(
         "dependents": sidecar.get("dependents") if isinstance(sidecar.get("dependents"), list) else [],
         "audit_log": _normalize_dataset_audit_log(sidecar.get("audit_log")),
         "exists": bool(sidecar),
-        "path": csv_path,
+        "path": handle_path,
         "sidecar_path": sidecar_path,
         "values": values,
     }
+
+
+def _rolled_up_development_labels(
+    ds_id: str,
+    path: str,
+    project_name: str,
+    development_length: int,
+    column_count: int,
+    *,
+    calendar: bool = False,
+) -> List[str]:
+    labels = _load_project_header_labels(
+        ds_id,
+        path,
+        project_name,
+        development_length,
+        period_type=1,
+        transposed=True,
+        calendar=calendar,
+    )
+    if len(labels) >= column_count and all(labels[:column_count]):
+        return labels[:column_count]
+    return [str(development_length * (index + 1)) for index in range(column_count)]
+
+
+def _display_view_of_stored_values(
+    project_name: str,
+    dataset_name: str,
+    sidecar: Dict[str, Any],
+    csv_path: str,
+    values: List[List[Any]],
+) -> Tuple[List[List[Any]], int, int, str, str] | None:
+    """Roll a hand-entered dataset's stored rows up to the shape it is shown at.
+
+    Returns ``(values, origin_length, development_length, dataset_id, path)``
+    for the view, or ``None`` when the sidecar's display shape is the stored
+    one or the file cannot be rolled up to it. The view is registered under
+    its own handle, the id of the file a dataset created at that shape would
+    have, so the id-addressed grid routes serve the same roll-up; nothing is
+    written, because the stored CSV is the only copy of the figures.
+    """
+
+    from app_server.services import precedent_cache_service
+
+    display_origin, display_development = display_lengths(sidecar)
+    if (display_origin, display_development) == stored_lengths(sidecar):
+        return None
+    if precedent_cache_service.rollup_reason(sidecar, display_origin, display_development):
+        return None
+    rows = precedent_cache_service.rollup_rows(
+        project_name, sidecar, values, display_origin, display_development
+    )
+    stored_origin, stored_development = stored_lengths(sidecar)
+    cumulative = bool(sidecar.get("cumulative", True))
+    calendar = bool(sidecar.get("calendar", False))
+    view_name = build_dataset_cache_file_name(
+        dataset_name,
+        str(sidecar.get("data_format") or "Triangle"),
+        display_origin,
+        display_development,
+        cumulative,
+        calendar,
+    )
+    view_path = os.path.join(os.path.dirname(csv_path), f"{view_name}.csv")
+    view_id = "arcrhotri_" + hashlib.sha1(view_path.encode("utf-8")).hexdigest()[:16]
+    register_rollup_handle(
+        view_id,
+        {
+            "source_path": csv_path,
+            "source_origin_length": stored_origin,
+            "source_development_length": stored_development,
+            "target_origin_length": display_origin,
+            "target_development_length": display_development,
+            "valuation_months": valuation_months(project_name),
+            "cumulative": cumulative,
+            "calendar": calendar,
+        },
+    )
+    return rows, display_origin, display_development, view_id, view_path
 
 
 def _dataset_cache_dir(project_name: str, reserving_class: str) -> str:

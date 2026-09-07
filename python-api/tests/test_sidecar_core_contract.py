@@ -20,6 +20,7 @@ from arcrho_api.sidecar_core_contract import (  # noqa: E402
     SIDECAR_STORED_ORIGIN_FIELD,
     SIDECAR_STORED_PERIOD_FIELD,
     SidecarContractError,
+    display_lengths,
     stored_length_fields,
     stored_lengths,
     validate_sidecar_core,
@@ -283,6 +284,25 @@ class ValidatorTests(unittest.TestCase):
         )
         self.assertEqual(stored_lengths({"data_format": "Triangle", "origin_length": 12}), (0, 0))
         self.assertEqual(stored_lengths({"data_format": "Vector", "stored_period_length": "x"}), (0, 0))
+
+    def test_a_reader_is_told_the_display_shape_the_same_way(self) -> None:
+        # The display pair is read through the same door, so a window that
+        # opens a dataset at the shape it was saved at never sees the stored one.
+        self.assertEqual(
+            display_lengths({
+                "data_format": "Triangle",
+                "origin_length": 12,
+                "development_length": 12,
+                "stored_origin_length": 12,
+                "stored_development_length": 1,
+            }),
+            (12, 12),
+        )
+        self.assertEqual(
+            display_lengths({"data_format": "Vector", "period_length": 12, "stored_period_length": 3}),
+            (12, 12),
+        )
+        self.assertEqual(display_lengths({"data_format": "Triangle", "stored_origin_length": 1}), (0, 0))
 
     def test_the_audit_log_must_be_last(self) -> None:
         sidecar = _engine_sidecar()

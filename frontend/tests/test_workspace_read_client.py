@@ -191,7 +191,7 @@ class RouteWiringTests(unittest.TestCase):
         service.assert_called_once_with(
             "Demo", "COL", "Paid",
             csv_file="Paid.csv", origin_length=None, development_length=None,
-            cumulative=True, calendar=False,
+            cumulative=True, calendar=False, at_display_shape=False,
         )
 
     def test_method_load_routes(self) -> None:

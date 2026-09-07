@@ -251,17 +251,6 @@ export function registerDataTabRequestController(runtime) {
     syncLenDropdownButtonLabel(selectId);
   }
 
-  // The period the dataset's own file is held at is a fact about the control,
-  // not a control of its own, so it rides on the trigger's tooltip and on the
-  // muted rows of the list rather than as a caption beside the strip.
-  function setLenSelectHint(selectId, hint) {
-    const wrap = getLenDropdownElements(selectId)?.wrap;
-    if (!wrap) return;
-    const text = String(hint || "");
-    if (text) wrap.setAttribute("data-hint", text);
-    else wrap.removeAttribute("data-hint");
-  }
-
   function syncLenDropdownButtonLabel(selectId) {
     const parts = getLenDropdownElements(selectId);
     const select = parts?.select;
@@ -431,10 +420,9 @@ export function registerDataTabRequestController(runtime) {
     if (button.dataset.wired === "1") return;
     button.dataset.wired = "1";
 
-    attachArcrhoTooltip(
-      button,
-      () => wrap.getAttribute("data-locked-reason") || wrap.getAttribute("data-hint") || "",
-    );
+    // The only tooltip a length control carries is the reason it is locked;
+    // the period the file is held at reads off the `Stored at` value beside it.
+    attachArcrhoTooltip(button, () => wrap.getAttribute("data-locked-reason") || "");
 
     button.addEventListener("click", (e) => {
       e.preventDefault();
@@ -967,7 +955,6 @@ export function registerDataTabRequestController(runtime) {
     storedLenUnavailableReason,
     setLenSelectStoredLength,
     setLenSelectDisplayLength,
-    setLenSelectHint,
     chooseActiveLenDropdownOption,
     moveLenDropdownActiveOption,
     cycleLenSelect,

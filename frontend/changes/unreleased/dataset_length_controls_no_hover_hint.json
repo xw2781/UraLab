@@ -1,0 +1,6 @@
+{
+  "type": "improvement",
+  "scope": "dataset",
+  "audience": "user",
+  "summary": "The Origin Length and Development Length controls no longer show a hover hint about the stored period; the Stored at value beside each length says it."
+}

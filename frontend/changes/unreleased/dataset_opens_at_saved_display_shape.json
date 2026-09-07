@@ -1,0 +1,10 @@
+{
+  "type": "fix",
+  "scope": "dataset",
+  "audience": "user",
+  "summary": "A dataset opened from Project Instance now shows the Origin and Development Length it was saved with, even when its figures are stored finer underneath.",
+  "details": [
+    "A hand-entered triangle imported from ResQ at a yearly display over monthly figures opened as 12/1 and could not be put back to 12/12, because the open reported the file's own shape as the displayed one.",
+    "The open now rolls the stored figures up to the saved display shape, shows the stored period beside each length, and keeps the coarse-view note on the status line."
+  ]
+}

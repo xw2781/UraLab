@@ -78,7 +78,7 @@ WORKSPACE_READ_KINDS: dict[str, WorkspaceReadKind] = {
         "dataset_service",
         "load_cached_dataset_values",
         ("project_name", "reserving_class", "dataset_name"),
-        ("csv_file", "origin_length", "development_length", "cumulative", "calendar"),
+        ("csv_file", "origin_length", "development_length", "cumulative", "calendar", "at_display_shape"),
     ),
     # The id-addressed grid load that follows a dataset run. ``ds_id`` is a
     # per-process handle; the server resolves it only if it registered the
