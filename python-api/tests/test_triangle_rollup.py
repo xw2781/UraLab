@@ -5,7 +5,13 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from arcrho_api.triangle_rollup import rollup_factors, rollup_reason, rollup_triangle
+from arcrho_api.triangle_rollup import (
+    rollup_factors,
+    rollup_reason,
+    rollup_triangle,
+    scatter_reason,
+    scatter_triangle,
+)
 
 
 def _monthly_cumulative(rows: int, columns: int, valuation: int, origin_length: int = 1) -> list:
@@ -194,6 +200,116 @@ class TriangleRollupTests(unittest.TestCase):
                 target_origin_length=12,
                 target_development_length=12,
                 valuation_months=0,
+            )
+
+
+class TriangleScatterTests(unittest.TestCase):
+    """Values entered at a coarser development view land in the stored cells.
+
+    Pinned to the ResQ probe recorded in
+    ``docs/plans/manual_input_stored_length_resq_alignment.md``: annual origins
+    from 2017-01 valued on 2026-05-31, so the project is 113 months long and an
+    annual view of a monthly store is valued at 5, 17, 29, ... 113 months.
+    """
+
+    valuation_months = 113
+    origin_rows = 10
+
+    def _annual_grid(self) -> list:
+        """The annual display: cell ``1000 x row + column``, one column narrower each row."""
+        return [
+            [1000.0 * row + column for column in range(self.origin_rows - row)]
+            for row in range(self.origin_rows)
+        ]
+
+    def _scatter(self, grid: list, cumulative: bool = True) -> list:
+        return scatter_triangle(
+            grid,
+            source_origin_length=12,
+            source_development_length=1,
+            target_origin_length=12,
+            target_development_length=12,
+            valuation_months=self.valuation_months,
+            cumulative=cumulative,
+        )
+
+    def _filled(self, row_index: int, row: list) -> list:
+        width = self.valuation_months - 12 * row_index
+        self.assertTrue(
+            all(value is None for value in row[width:]),
+            f"row {row_index} holds a cell after the valuation date",
+        )
+        filled = row[:width]
+        self.assertTrue(all(value is not None for value in filled))
+        return filled
+
+    def test_an_annual_grid_lands_at_the_ages_the_annual_view_reads(self) -> None:
+        stored = self._scatter(self._annual_grid())
+
+        self.assertEqual(len(stored), self.origin_rows)
+        for row_index, row in enumerate(stored):
+            self.assertEqual(len(row), self.valuation_months)
+            filled = self._filled(row_index, row)
+            entered = {
+                4 + 12 * column: 1000.0 * row_index + column
+                for column in range(self.origin_rows - row_index)
+            }
+            for column, value in enumerate(filled):
+                self.assertEqual(
+                    value,
+                    entered.get(column, 0.0),
+                    f"stored row {row_index} at {column + 1} months",
+                )
+
+    def test_an_incremental_grid_stores_the_running_sums(self) -> None:
+        stored = self._scatter(self._annual_grid(), cumulative=False)
+
+        for row_index, row in enumerate(stored):
+            filled = self._filled(row_index, row)
+            running = 0.0
+            expected = {}
+            for column in range(self.origin_rows - row_index):
+                running += 1000.0 * row_index + column
+                # The whole store is cumulative 0 apart from the entered ages,
+                # so each running sum shows again as its own negative one month on.
+                expected[4 + 12 * column] = running
+                expected[5 + 12 * column] = -running
+            for column, value in enumerate(filled):
+                self.assertEqual(
+                    value,
+                    expected.get(column, 0.0),
+                    f"stored row {row_index} at {column + 1} months",
+                )
+
+    def test_the_annual_view_of_the_scattered_store_is_what_was_entered(self) -> None:
+        grid = self._annual_grid()
+        padded = [row + [None] * (self.origin_rows - len(row)) for row in grid]
+        for cumulative in (True, False):
+            rolled = rollup_triangle(
+                self._scatter(grid, cumulative=cumulative),
+                source_origin_length=12,
+                source_development_length=1,
+                target_origin_length=12,
+                target_development_length=12,
+                valuation_months=self.valuation_months,
+                cumulative=cumulative,
+            )
+            self.assertEqual(rolled, padded, f"cumulative={cumulative}")
+
+    def test_a_coarser_origin_period_cannot_be_written(self) -> None:
+        self.assertEqual(
+            scatter_reason(1, 1, 12, 12),
+            "values can be entered only at the stored origin period",
+        )
+        self.assertEqual(scatter_reason(12, 1, 12, 12), "")
+        with self.assertRaises(ValueError):
+            scatter_triangle(
+                [[1.0]],
+                source_origin_length=1,
+                source_development_length=1,
+                target_origin_length=12,
+                target_development_length=12,
+                valuation_months=self.valuation_months,
             )
 
 

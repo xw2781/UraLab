@@ -1,4 +1,5 @@
-"""Roll a triangle up from a finer origin/development period to a coarser one.
+"""Roll a triangle up from a finer origin/development period to a coarser one,
+and scatter values entered at the coarser one back into the finer store.
 
 This module is the single owner of that arithmetic. The bundled app server
 derives a coarser cached view of a stored triangle with it, and the Engine
@@ -31,6 +32,15 @@ dates, one origin period apart. A coarse cell has a single valuation date, so
 its parts are read along the calendar diagonal of the finer triangle: every
 finer row of the block contributes the cell it holds at that date.
 
+Writing at a coarser development view
+-------------------------------------
+``scatter_triangle`` is the inverse of that read, and follows ResQ: a value
+entered in a coarse cell is the row's cumulative figure at that cell's
+valuation date, so it lands in the one stored cell valued at the same date
+and every other stored cell of the triangle becomes cumulative 0. The origin
+axis is never relaxed -- a coarse origin row has no single valuation date to
+write to -- so the two grids share their rows.
+
 A calendar-aligned triangle (the ``cal`` variant) has already been reshaped so
 that a column is a calendar period counted forward from the anchor. Its
 columns share one valuation date down the whole triangle, so rolling it up is
@@ -53,7 +63,13 @@ from typing import Any, List, Sequence
 
 Triangle = Sequence[Sequence[Any]]
 
-__all__ = ["rollup_reason", "rollup_factors", "rollup_triangle"]
+__all__ = [
+    "rollup_reason",
+    "rollup_factors",
+    "rollup_triangle",
+    "scatter_reason",
+    "scatter_triangle",
+]
 
 
 def _positive_int(value: Any) -> int:
@@ -288,3 +304,87 @@ def rollup_triangle(
         last_month,
         cumulative,
     )
+
+
+def scatter_reason(
+    source_origin_length: Any,
+    source_development_length: Any,
+    target_origin_length: Any,
+    target_development_length: Any,
+) -> str:
+    """Return an empty string when values at the target shape can be scattered."""
+    if _positive_int(target_origin_length) != _positive_int(source_origin_length):
+        return "values can be entered only at the stored origin period"
+    return rollup_reason(
+        source_origin_length,
+        source_development_length,
+        target_origin_length,
+        target_development_length,
+    )
+
+
+def scatter_triangle(
+    values: Triangle,
+    *,
+    source_origin_length: Any,
+    source_development_length: Any,
+    target_origin_length: Any,
+    target_development_length: Any,
+    valuation_months: Any,
+    cumulative: bool = True,
+) -> List[List[float | None]]:
+    """Write ``values``, entered at the target shape, into the source shape.
+
+    The inverse of :func:`rollup_triangle` on the development axis: each
+    entered cell is the row's cumulative figure at its valuation date, so it
+    lands in the stored cell valued at the same date and every other stored
+    cell becomes cumulative 0. An incremental grid is accumulated along the
+    row first, and the result is returned in the same convention it arrived
+    in, which puts each figure at its age and its negative at the next stored
+    age. The rows are the rows of ``values``; the columns are the ones a
+    triangle created at the source shape would have.
+    """
+    reason = scatter_reason(
+        source_origin_length,
+        source_development_length,
+        target_origin_length,
+        target_development_length,
+    )
+    if reason:
+        raise ValueError(reason)
+    months = _positive_int(valuation_months)
+    if not months:
+        raise ValueError("invalid valuation date")
+    last_month = months - 1
+    origin_length = _positive_int(source_origin_length)
+    source_development = _positive_int(source_development_length)
+    target_development = _positive_int(target_development_length)
+    rows = [list(row) for row in (values or [])]
+    if not rows:
+        raise ValueError("entered triangle holds no rows")
+    stored_columns = last_month // source_development + 1
+    scattered: List[List[float | None]] = []
+    for row_index, row in enumerate(rows):
+        first_valued_at = _valued_at(row_index, 0, origin_length, source_development, last_month)
+        entered_at: dict[int, float] = {}
+        running = 0.0
+        for column in range(len(row)):
+            valued_at = _valued_at(row_index, column, origin_length, target_development, last_month)
+            if valued_at > last_month:
+                break
+            entered = _cell(rows, row_index, column)
+            if entered is None:
+                continue
+            running = entered if cumulative else running + entered
+            entered_at[(valued_at - first_valued_at) // source_development] = running
+        scattered_row: List[float | None] = []
+        previous = 0.0
+        for column in range(stored_columns):
+            if _valued_at(row_index, column, origin_length, source_development, last_month) > last_month:
+                scattered_row.append(None)
+                continue
+            value = entered_at.get(column, 0.0)
+            scattered_row.append(value if cumulative else value - previous)
+            previous = value
+        scattered.append(scattered_row)
+    return scattered

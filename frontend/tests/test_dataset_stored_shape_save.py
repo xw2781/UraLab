@@ -5,6 +5,10 @@ carries are the shape the dataset is displayed at, so an ``input`` sidecar's
 stored shape and its CSV survive a display-only save, a save that carries
 values at any other shape is refused, and only a dataset whose file holds
 nothing is relabelled to the shape asked for.
+
+Step 3 of ``docs/plans/manual_input_stored_length_resq_alignment.md`` relaxes
+that refusal on the development axis alone: values entered at a coarser
+development view are scattered into the stored cells at their valuation dates.
 """
 
 from __future__ import annotations
@@ -66,6 +70,23 @@ class ManualDatasetStoredShapeSaveTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.temp.cleanup()
         self.propagation_workspace.stop()
+
+    def _probe_general_settings(self):
+        """Point the save at the ResQ probe project's dates.
+
+        The scatter needs the project's Origin Start Date and Development End
+        Date to know what each column is valued at, so the save reads real
+        General Settings rather than a patched geometry.
+        """
+        settings_path = os.path.join(self.data_dir, "general_settings.json")
+        with open(settings_path, "w", encoding="utf-8") as fh:
+            fh.write(
+                '{"origin_start_date":"201701","origin_end_date":"202601",'
+                '"development_end_date":"202605"}'
+            )
+        return patch.object(
+            dataset_service.config, "get_general_settings_path", return_value=settings_path
+        )
 
     def _write_stored_csv(self, name: str, values) -> str:
         path = os.path.join(self.data_dir, name)
@@ -143,15 +164,84 @@ class ManualDatasetStoredShapeSaveTests(unittest.TestCase):
         self.assertTrue(os.path.exists(monthly_path))
         self.assertFalse(os.path.exists(os.path.join(self.data_dir, ANNUAL_CSV)))
 
-    def test_values_save_at_another_shape_is_refused(self) -> None:
+    def test_values_save_at_a_coarser_origin_is_refused(self) -> None:
         self._write_stored_csv(MONTHLY_CSV, [[100.0, 110.0], [120.0, np.nan]])
 
         with self.assertRaises(HTTPException) as raised:
             self._save(origin_length=12, development_length=12, values=[[230.0]])
 
+        self.assertEqual(raised.exception.status_code, 400)
+        self.assertEqual(
+            raised.exception.detail,
+            "Values can be entered only at the stored origin period.",
+        )
+        self.assertFalse(os.path.exists(os.path.join(self.data_dir, ANNUAL_CSV)))
+
+    def test_a_vector_save_at_another_period_is_refused(self) -> None:
+        self.existing = {
+            "dataset_name": "Dataset",
+            "dataset_type": "Input Type",
+            "project_name": "Project",
+            "reserving_class": "Class",
+            "source_kind": "input",
+            "data_format": "Vector",
+            "period_length": 1,
+            "stored_period_length": 1,
+            "csv_file": MONTHLY_VECTOR_CSV,
+        }
+        self._write_stored_csv(MONTHLY_VECTOR_CSV, [[100.0], [120.0]])
+
+        with self.assertRaises(HTTPException) as raised:
+            self._save(
+                origin_length=12,
+                development_length=12,
+                values=[[230.0]],
+                data_format="Vector",
+            )
+
         self.assertEqual(raised.exception.status_code, 422)
         self.assertIn("stores its values at", raised.exception.detail)
-        self.assertFalse(os.path.exists(os.path.join(self.data_dir, ANNUAL_CSV)))
+
+    def test_values_at_a_coarser_development_view_land_in_the_stored_cells(self) -> None:
+        # The ResQ probe's project: annual origins from 2017-01 valued on
+        # 2026-05-31, so a monthly store is 113 columns wide and its annual
+        # view is valued at 5, 17, 29, ... 113 months.
+        self.existing = {
+            **self.existing,
+            "origin_length": 12,
+            "development_length": 12,
+            "stored_origin_length": 12,
+            "stored_development_length": 1,
+            "csv_file": ANNUAL_OVER_MONTHLY_CSV,
+        }
+        self._write_stored_csv(ANNUAL_OVER_MONTHLY_CSV, [[100.0]])
+        annual = [
+            [1000.0 * row + column if column < 10 - row else None for column in range(10)]
+            for row in range(10)
+        ]
+
+        with self._probe_general_settings():
+            result, payload = self._save(
+                origin_length=12, development_length=12, values=annual
+            )
+
+        self.assertEqual(payload["origin_length"], 12)
+        self.assertEqual(payload["development_length"], 12)
+        self.assertEqual(payload["stored_origin_length"], 12)
+        self.assertEqual(payload["stored_development_length"], 1)
+        self.assertEqual(payload["csv_file"], ANNUAL_OVER_MONTHLY_CSV)
+        self.assertEqual(result["stored_development_length"], 1)
+
+        written = dataset_service.load_triangle_values(
+            os.path.join(self.data_dir, ANNUAL_OVER_MONTHLY_CSV)
+        )
+        self.assertEqual(written.shape, (10, 113))
+        entered = {4 + 12 * column: float(column) for column in range(10)}
+        for column, value in enumerate(written.iloc[0].tolist()):
+            self.assertEqual(value, entered.get(column, 0.0), f"{column + 1} months")
+        newest = written.iloc[9].tolist()
+        self.assertEqual(newest[4], 9000.0)
+        self.assertTrue(all(bool(pd.isna(value)) for value in newest[5:]))
 
     def test_values_save_at_the_stored_shape_is_written(self) -> None:
         self._write_stored_csv(MONTHLY_CSV, [[100.0, 110.0], [120.0, np.nan]])

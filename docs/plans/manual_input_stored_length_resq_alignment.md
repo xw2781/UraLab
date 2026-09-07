@@ -1,6 +1,6 @@
 # Manual Input Triangles: Matching ResQ's Stored-Length Editing
 
-Status: Broken into 7 session-sized steps on 2026-09-06; steps 1 and 2 landed the same day (2 of 7 done). The ResQ rules are established against the COM API and both design decisions are taken, so every step can run unattended.
+Status: Broken into 7 session-sized steps on 2026-09-06; steps 1 to 3 landed the same day (3 of 7 done). The ResQ rules are established against the COM API and both design decisions are taken, so every step can run unattended.
 Last updated: 2026-09-06.
 
 ## Progress
@@ -11,13 +11,13 @@ Plain-language tracking. The agent that finishes a step ticks its box, fills in 
 | :--- | :--- | :--- | :--- | :--- |
 | 1 | An empty triangle can be told to store its development periods finer than it shows | [x] | 2026-09-06 | Saving a dataset that is still empty can now keep its figures monthly underneath a yearly view; the control to ask for that comes with the next step. |
 | 2 | The Data tab shows "Stored at" beside each length, and an empty triangle's development store can be lowered there | [x] | 2026-09-06 | Each length in the Data tab now has a "Stored at" value beside it, and while a hand-entered dataset is still empty you can lower the development one so a yearly view keeps monthly figures underneath. |
-| 3 | Values saved at a coarser development view land in the stored cells at their ages | [ ] | | |
+| 3 | Values saved at a coarser development view land in the stored cells at their ages | [x] | 2026-09-06 | Figures saved while a yearly view of a monthly dataset is on screen now land in the monthly cells underneath, at the dates those columns stand for, and the rest of the triangle is cleared, exactly as ResQ does it. |
 | 4 | Typing, paste and links work when only the development view is coarser than the store | [ ] | | |
 | 5 | The export macro writes a hand-entered triangle to ResQ at its stored shape | [ ] | | |
 | 6 | A yearly view of a monthly triangle is pinned to ResQ's own numbers | [ ] | | |
 | 7 | The server components carry the change | [ ] | | |
 
-Overall: 2 of 7 steps done.
+Overall: 3 of 7 steps done.
 
 ## How agents work this plan
 
@@ -161,13 +161,14 @@ Steps 1→2 and 3→4 are ordered pairs. Steps 1 and 3 both edit the dataset sav
 
 **Goal.** A save whose values are at a development display coarser than the store writes each display cell's cumulative value into the stored cell at its age and zeroes every other stored cell (Decision 1, rule 5). A coarser origin display is still refused (rule 6).
 
-**Read first.** ResQ rules 2, 5 and 6 and Decision 1; [triangle_rollup.py:1-60](../../python-api/src/arcrho_api/triangle_rollup.py#L1-L60) and [triangle_rollup.py:137-200](../../python-api/src/arcrho_api/triangle_rollup.py#L137-L200) (the valuation arithmetic the write must invert); the values-to-CSV part of the save at [dataset_service.py:2117-2260](../../frontend/app_server/services/dataset_service.py#L2117-L2260) and the roll-up read at [dataset_service.py:1097-1105](../../frontend/app_server/services/dataset_service.py#L1097-L1105); [test_manual_dataset_rollup_view.py](../../frontend/tests/test_manual_dataset_rollup_view.py) (the fake-project and General Settings patch technique); [test_triangle_rollup.py](../../python-api/tests/test_triangle_rollup.py). Memory notes: `triangle-rollup-valuation-anchor`, `propagation-hold-and-test-isolation`, `python-test-runner`.
+**Read first.** ResQ rules 2, 5 and 6 and Decision 1; [triangle_rollup.py:1-60](../../python-api/src/arcrho_api/triangle_rollup.py#L1-L60) and [triangle_rollup.py:137-200](../../python-api/src/arcrho_api/triangle_rollup.py#L137-L200) (the valuation arithmetic the write must invert); the values-to-CSV part of the save at [dataset_service.py:2117-2260](../../frontend/app_server/services/dataset_service.py#L2117-L2260) and the roll-up read at [dataset_service.py:1097-1105](../../frontend/app_server/services/dataset_service.py#L1097-L1105); [test_manual_dataset_rollup_view.py](../../frontend/tests/test_manual_dataset_rollup_view.py) (the fake-project and General Settings patch technique); [test_triangle_rollup.py](../../python-api/tests/test_triangle_rollup.py). Also needed and added while working the step: the hand-entered save paragraph of [dataset.md](../../frontend/docs/app_server/domains/dataset.md), which states the refusal this step relaxes, and [changes/README.md](../../frontend/changes/README.md) for the release fragment. Memory notes: `triangle-rollup-valuation-anchor`, `propagation-hold-and-test-isolation`, `python-test-runner`.
 
 **Do.**
 
-- [ ] Add `scatter_triangle` beside `rollup_triangle` in [triangle_rollup.py](../../python-api/src/arcrho_api/triangle_rollup.py), sharing `_valued_at`: each coarse cell's cumulative value goes to the stored cell at its valuation month; every other stored cell is 0; an incremental display is turned into cumulative first (rule 5), and the result is written as the sidecar's own cumulative or incremental convention says.
-- [ ] In the sidecar save, when values arrive at a development display coarser than the stored one and an origin display equal to it, scatter them into the stored shape before the CSV is written; when the origin display is coarser, refuse with a 400 reading `Values can be entered only at the stored origin period.`
-- [ ] The stored pair reported back is unchanged by such a save.
+- [x] Add `scatter_triangle` beside `rollup_triangle` in [triangle_rollup.py](../../python-api/src/arcrho_api/triangle_rollup.py), sharing `_valued_at`: each coarse cell's cumulative value goes to the stored cell at its valuation month; every other stored cell is 0; an incremental display is turned into cumulative first (rule 5), and the result is written as the sidecar's own cumulative or incremental convention says.
+- [x] In the sidecar save, when values arrive at a development display coarser than the stored one and an origin display equal to it, scatter them into the stored shape before the CSV is written; when the origin display is coarser, refuse with a 400 reading `Values can be entered only at the stored origin period.`
+- [x] The stored pair reported back is unchanged by such a save.
+- [x] Restate the hand-entered save rule in [dataset.md](../../frontend/docs/app_server/domains/dataset.md) and add the release fragment.
 
 **Tests.** [test_triangle_rollup.py](../../python-api/tests/test_triangle_rollup.py) gains scatter cases pinned to the probe's numbers in a project valued 113 months after its origin start: the annual grid `1000·row + column` scattered into a 12/1 store lands at months 5, 17, … 113 with zeros elsewhere, the incremental case stores the running sums, and scatter followed by roll-up returns the input. [test_dataset_stored_shape_save.py](../../frontend/tests/test_dataset_stored_shape_save.py) gains: a save at 12/12 over a 12/1 store writes a 10×113 CSV with those values; an origin-coarse save is refused.
 

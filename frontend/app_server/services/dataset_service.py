@@ -28,7 +28,7 @@ from arcrho_api.sidecar_audit_contract import (
 )
 from arcrho_api.sidecar_core_contract import finalize_sidecar, stored_length_fields, stored_lengths
 from arcrho_api.timestamps import utc_now_text
-from arcrho_api.triangle_rollup import rollup_triangle
+from arcrho_api.triangle_rollup import rollup_triangle, scatter_triangle
 from app_server import config
 from app_server.helpers import (
     _canon_dataset_name,
@@ -2174,16 +2174,30 @@ def _save_dataset_sidecar_impl(
                         "holds values.",
                     )
                 if values is not None and display_shape != existing_shape:
-                    shape_text = (
-                        f"period length {existing_origin}"
-                        if is_vector
-                        else f"origin length {existing_origin} and development length {existing_development}"
+                    # ResQ relaxes the development axis alone: values entered at
+                    # a coarser development view are scattered into the stored
+                    # cells below, while a coarser origin period has no single
+                    # valuation date to write to and a vector neither.
+                    development_is_a_view_of_the_store = (
+                        not is_vector
+                        and existing_development > 0
+                        and int(development_length) % existing_development == 0
                     )
-                    raise HTTPException(
-                        422,
-                        f"Dataset '{ds}' stores its values at {shape_text}. Values can be entered "
-                        "only at the stored period; set the lengths back to edit.",
-                    )
+                    if not development_is_a_view_of_the_store:
+                        shape_text = (
+                            f"period length {existing_origin}"
+                            if is_vector
+                            else f"origin length {existing_origin} and development length {existing_development}"
+                        )
+                        raise HTTPException(
+                            422,
+                            f"Dataset '{ds}' stores its values at {shape_text}. Values can be entered "
+                            "only at the stored period; set the lengths back to edit.",
+                        )
+                    if int(origin_length) != existing_origin:
+                        raise HTTPException(
+                            400, "Values can be entered only at the stored origin period."
+                        )
                 stored_origin_months, stored_development_months = existing_origin, existing_development
             elif existing_shape != requested_shape:
                 relabel_empty_input = True
@@ -2301,6 +2315,30 @@ def _save_dataset_sidecar_impl(
         values_frame = _dataset_values_to_frame(values, mask) if values is not None else None
         if values_frame is not None and stored_shape_is_display:
             df = values_frame
+        elif values_frame is not None and not is_vector:
+            # A coarser development view of the store: each entered cell is the
+            # row's cumulative figure at its valuation date, so it goes to the
+            # stored cell valued there and the rest of the store goes to zero,
+            # the way ResQ rebuilds a triangle written at a coarse display.
+            if int(origin_length) != stored_origin_months:
+                raise HTTPException(
+                    400, "Values can be entered only at the stored origin period."
+                )
+            df = pd.DataFrame(
+                scatter_triangle(
+                    [
+                        [None if pd.isna(cell) else float(cell) for cell in row]
+                        for row in values_frame.to_numpy()
+                    ],
+                    source_origin_length=stored_origin_months,
+                    source_development_length=stored_development_months,
+                    target_origin_length=int(origin_length),
+                    target_development_length=int(development_length),
+                    valuation_months=valuation_months(p),
+                    cumulative=bool(cumulative),
+                ),
+                dtype="float64",
+            )
         else:
             # Values arrive at the display shape, which a store finer than the
             # display cannot hold as it stands. Only a dataset that is empty

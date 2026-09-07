@@ -1,0 +1,12 @@
+{
+  "type": "improvement",
+  "scope": "dataset",
+  "audience": "internal",
+  "summary": "Figures saved while a hand-entered triangle is shown a year at a time now land in the monthly cells underneath, as ResQ does.",
+  "details": [
+    "Each figure entered on a coarser view is the row's total at that column's date, so it is written into the one underlying cell for that date and the rest of the triangle is cleared to zero, exactly as ResQ rebuilds a triangle written this way.",
+    "A view that is coarser on the rows is still refused, because a group of rows has no single date to write to, and so is a vector shown at a longer period.",
+    "The dataset keeps the period its figures are kept at; only the figures change.",
+    "The screen still refuses to type or paste on a coarser view; that arrives with the next step of the work."
+  ]
+}
