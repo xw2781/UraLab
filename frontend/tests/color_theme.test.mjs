@@ -668,7 +668,7 @@ test("DFM Ratios dark mode keeps exclusions visible and selected averages restra
 
 test("changed theme and chart owners are reached through current cache-version chains", () => {
   const expectedReferences = [
-    ["../ui/dataset_viewer/dataset_viewer.html", "dataset_viewer_main.js?v=20260907c"],
+    ["../ui/dataset_viewer/dataset_viewer.html", "dataset_viewer_main.js?v=20260907e"],
     ["../ui/dataset_viewer/dataset_viewer_main.js", "dataset_viewer_view.js?v=20260907a"],
     ["../ui/dataset_viewer/dataset_viewer_main.js", "dataset_chart_tab.js?v=20260907a"],
     ["../ui/dataset_viewer/tabs/dataset_chart_tab.js", "dataset_chart_renderer.js?v=20260724a"],

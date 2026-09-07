@@ -465,10 +465,11 @@ class ExcelLinkRetargetTests(ExcelLinkFixture):
         self.assertEqual((kwargs["origin_length"], kwargs["development_length"]), (12, 12))
 
     def test_retarget_reads_a_finer_store_at_the_display_its_links_name(self) -> None:
-        # A link names a cell of the grid its dataset is displayed at, which is
-        # not the file's own grid when the file is stored finer. The values are
-        # read at that display and handed back the same way, and the save puts
-        # them into the store as any save from that view does.
+        # A link names a cell of the grid its dataset was displayed at when it
+        # was written, which is not the file's own grid when the file is stored
+        # finer. The values are read at that display and handed back the same
+        # way, and the save puts them into the store as any save from that
+        # view does.
         sidecar = self.linked_sidecar()
         sidecar["stored_development_length"] = 1
         sidecar["csv_file"] = "Manual Paid@12@1@cum@dev.csv"
@@ -477,9 +478,29 @@ class ExcelLinkRetargetTests(ExcelLinkFixture):
 
         self.assertTrue(self.run_retarget()["ok"])
 
-        self.assertIs(self.load_values.call_args.kwargs["at_display_shape"], True)
+        self.assertIs(self.load_values.call_args.kwargs["at_linked_shape"], True)
         kwargs = self.dataset_save.call_args.kwargs
         self.assertEqual((kwargs["origin_length"], kwargs["development_length"]), (12, 12))
+        self.assertEqual(kwargs["display_at"], (12, 12))
+
+    def test_retarget_leaves_a_display_that_moved_on_from_the_links(self) -> None:
+        # The dataset has been saved at a yearly-of-three view since its links
+        # were written at 12/12. The links are still read and written at 12/12,
+        # and the save records the 36/36 display rather than pulling it back.
+        sidecar = self.linked_sidecar()
+        sidecar["origin_length"] = 36
+        sidecar["development_length"] = 36
+        sidecar["linked_origin_length"] = 12
+        sidecar["linked_development_length"] = 12
+        self.write_json(self.sidecars / "Manual Paid.json", sidecar)
+        self.dataset_display_shape = (12, 12)
+
+        self.assertTrue(self.run_retarget()["ok"])
+
+        self.assertIs(self.load_values.call_args.kwargs["at_linked_shape"], True)
+        kwargs = self.dataset_save.call_args.kwargs
+        self.assertEqual((kwargs["origin_length"], kwargs["development_length"]), (12, 12))
+        self.assertEqual(kwargs["display_at"], (36, 36))
 
     def test_retarget_reads_the_new_workbook_and_applies_changed_values(self) -> None:
         self.write_json(self.sidecars / "Manual Paid.json", self.linked_sidecar())

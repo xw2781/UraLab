@@ -397,10 +397,28 @@ test("the offered lengths follow the open dataset's stored period", () => {
   // A hand-entered dataset that still holds nothing has no stored period to
   // protect, so the whole ladder stays open until its first real save, and so
   // does one that was cleared and reshaped before its new values went in.
+  // "Holds nothing" is asked of the dataset's own file, not of the grid on
+  // screen: ResQ fixes the store on the first value a triangle is saved with,
+  // so a pasted block waiting to be saved must leave the store still movable.
   assert.match(
     persistenceControllerSource,
-    /function storedLengthIsPending\(\) \{\s*return currentDatasetIsManualTriangleOrVector\(\) && \(datasetValuesAreAllZero\(\) \|\| releasedLengths !== null\);/u,
+    /function storedLengthIsPending\(\) \{\s*return currentDatasetIsManualTriangleOrVector\(\)\s*&& \(savedDatasetHoldsNoValue\(\) \|\| releasedLengths !== null\);/u,
   );
+  // An edit writes straight into the model, so the grid can answer for the file
+  // only while nothing is dirty; past that the answer taken before the edits
+  // stands, and a load or a save replaces it.
+  assert.match(
+    persistenceControllerSource,
+    /function savedDatasetHoldsNoValue\(\) \{\s*if \(!\(state\.dirty\?\.size > 0\)\) savedDatasetIsEmpty = datasetValuesAreAllZero\(\);\s*return savedDatasetIsEmpty;/u,
+  );
+  assert.match(persistenceControllerSource, /savedDatasetIsEmpty = datasetValuesAreAllZero\(\);\s*\}\s*function getStoredLengthPair/u);
+  // The ladder and the length validator must agree on how far down a display
+  // may go, or the list offers a length the validator snaps straight back.
+  assert.match(
+    persistenceControllerSource,
+    /function manualDatasetLadderFloor\(\) \{\s*if \(!storedLengthIsPending\(\)\) return getStoredLengthPair\(\);\s*if \(datasetValuesAreAllZero\(\)\) return \{ origin_length: 0, development_length: 0 \};\s*return releasedLengths \|\| getManualDatasetLengthBaseline\(\);/u,
+  );
+  assert.match(persistenceControllerSource, /const stored = manualDatasetLadderFloor\(\);/u);
   assert.match(persistenceControllerSource, /applyStoredLengthChoices\(\);/u);
   // Narrowing runs before the saved display shape is written into the control,
   // so the length the window reopens at is never dropped for want of an option.
@@ -607,18 +625,25 @@ test("only a coarser origin view is read-only, and it names that axis", () => {
   );
 });
 
-test("a view off the lengths the links were read at holds them still and says which length to put back", () => {
+test("a view off the lengths the links were written at holds them still and says which length to put back", () => {
   // A saved link names a cell of the grid its dataset was displayed at when the
-  // sidecar was written, not a cell of the file underneath, so the period the
+  // link was written, not a cell of the file underneath, so the period the
   // file is stored at decides nothing here: a triangle kept monthly under a
   // yearly display carries yearly links and they stay live at that display.
+  // The sidecar records that pair apart from the display pair, so the display
+  // can move on and be saved while the links wait at their own lengths.
   assert.match(
     persistenceControllerSource,
-    /function datasetLinkedDisplayLengths\(\) \{\s*const settings = lastSavedDatasetSettings;/u,
+    /runtime\.currentDatasetLinkedOriginLength = Number\(source\.linked_origin_length\) \|\| 0;/u,
   );
   assert.match(
     persistenceControllerSource,
-    /function datasetDisplayIsAtLinkedShape\(\) \{\s*if \(storedLengthIsPending\(\)\) return true;\s*const linked = datasetLinkedDisplayLengths\(\);/u,
+    /function datasetLinkedDisplayLengths\(\) \{\s*const linked = Number\(runtime\.currentDatasetLinkedOriginLength\);/u,
+  );
+  // A dataset with no link has nothing to hold still.
+  assert.match(
+    persistenceControllerSource,
+    /function datasetDisplayIsAtLinkedShape\(\) \{\s*if \(storedLengthIsPending\(\)\) return true;\s*if \(!linkControllerNames\.some\(\(name\) => runtime\[name\]\.hasLinks\(\)\)\) return true;\s*const linked = datasetLinkedDisplayLengths\(\);/u,
   );
   // Both axes count, not only the one that locks the grid.
   assert.match(persistenceControllerSource, /if \(current\.origin_length !== linked\.origin_length\) return false;/u);
@@ -640,20 +665,18 @@ test("a view off the lengths the links were read at holds them still and says wh
   // the lengths to set back, worded the way the controls beside it are.
   assert.match(
     persistenceControllerSource,
-    /This dataset's cells are linked\. Set \$\{lengths\.join\(" and "\)\} to \$\{allows\}\./u,
+    /This dataset's cells are linked\. Set \$\{lengths\.join\(" and "\)\} to view or edit the formula\./u,
   );
   assert.match(persistenceControllerSource, /lengths\.push\(`Origin Length to \$\{linked\.origin_length\}`\)/u);
   assert.match(persistenceControllerSource, /lengths\.push\(`Development Length to \$\{linked\.development_length\}`\)/u);
   assert.match(
     persistenceControllerSource,
-    /This dataset's cells are linked\. Set the length to \$\{linked\.origin_length\} to \$\{allows\}\./u,
+    /This dataset's cells are linked\. Set the length to \$\{linked\.origin_length\} to view or edit the formula\./u,
   );
-  // The same sentence refuses a save made at those other lengths, which would
-  // otherwise record them as the grid every saved link is filed against.
-  assert.match(
-    persistenceControllerSource,
-    /const offLinkedShapeHint = datasetOffLinkedShapeLinkHint\("save this dataset"\);\s*if \(offLinkedShapeHint && linkControllerNames\.some\(\(name\) => runtime\[name\]\.hasLinks\(\)\)\) \{/u,
-  );
+  // The save is not refused there: the display lengths are saved and the
+  // sidecar keeps the linked pair apart from them.
+  assert.doesNotMatch(persistenceControllerSource, /to save this dataset/u);
+  assert.doesNotMatch(persistenceControllerSource, /offLinkedShapeHint/u);
   // The sentence reaches the grid as a formula-bar notice, never as a formula.
   assert.match(dataTabControllerSource, /const note = offLinkedShapeLinkNote\(\);/u);
   assert.match(dataTabControllerSource, /return \{ note, anchorDisplayRow: displayRow, anchorDisplayColumn: displayColumn \};/u);
@@ -663,9 +686,12 @@ test("a view off the lengths the links were read at holds them still and says wh
 test("a coarser development view is editable and says what a save there does", () => {
   // The development test is its own function and nothing in the read-only
   // chain reads it, so typing, paste and links stay live at that view.
+  // It reads the period the next save will write at, so a still-empty dataset
+  // told to store its figures finer than it shows them says so straight away
+  // rather than only after that first save.
   assert.match(
     persistenceControllerSource,
-    /function datasetDevelopmentDisplayIsCoarserThanStored\(\) \{\s*if \(storedLengthIsPending\(\) \|\| currentDatasetIsVector\(\)\) return false;/u,
+    /function datasetDevelopmentDisplayIsCoarserThanStored\(\) \{\s*if \(currentDatasetIsVector\(\)\) return false;\s*const stored = getStoredLengthControlPair\(\);/u,
   );
   assert.doesNotMatch(preferencesControllerSource, /datasetDevelopmentDisplayIsCoarserThanStored/u);
   // A save there rewrites the whole stored triangle, so one sentence stays on

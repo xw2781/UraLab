@@ -43,6 +43,7 @@ from arcrho_api.dataset_link_contract import (
     tokenize_dataset_formula,
 )
 from arcrho_api.sidecar_audit_contract import AUDIT_ACTION_AUTO_REFRESH, append_audit_entry
+from arcrho_api.sidecar_core_contract import stored_lengths
 from arcrho_api.timestamps import utc_now_text
 
 from app_server.services import (
@@ -288,8 +289,11 @@ def refresh_dataset_links(
         return result
 
     try:
+        # A link names a cell of the grid the dataset was displayed at when the
+        # link was written, so the cells are read at that shape, which is the
+        # file's own only while the two agree.
         target = dataset_service.load_cached_dataset_values(
-            project_name, reserving_class, dataset_name
+            project_name, reserving_class, dataset_name, at_linked_shape=True
         )
     except HTTPException as err:
         return {**result, "ok": False, "reason": "missing_values", "errors": [str(err.detail)]}
@@ -439,12 +443,25 @@ def refresh_dataset_links(
         action=AUDIT_ACTION_AUTO_REFRESH,
         user=sidecar["modified_by"],
     )
+    from app_server import config
     from app_server.services.dataset_service import _write_dataset_csv_and_sidecar
 
-    _write_dataset_csv_and_sidecar(
-        pd.DataFrame(values).astype(object),
-        csv_path,
-        sidecar_path,
-        sidecar,
-    )
+    frame = pd.DataFrame(values).astype(object)
+    view = (int(target.get("origin_length") or 0), int(target.get("development_length") or 0))
+    if all(view) and view != stored_lengths(sidecar):
+        # The cells were read at a coarser view of the store, so they go back
+        # into it the way a save from that view does, and to the file itself
+        # rather than the view's handle.
+        frame = dataset_service.scatter_view_into_store(
+            project_name,
+            frame,
+            stored_lengths=stored_lengths(sidecar),
+            view_lengths=view,
+            cumulative=bool(sidecar.get("cumulative", True)),
+        )
+        csv_path = os.path.join(
+            config.get_project_dataset_cache_dir(project_name, reserving_class),
+            str(sidecar.get("csv_file") or ""),
+        )
+    _write_dataset_csv_and_sidecar(frame, csv_path, sidecar_path, sidecar)
     return result

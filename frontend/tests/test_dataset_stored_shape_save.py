@@ -9,6 +9,10 @@ nothing is relabelled to the shape asked for.
 Step 3 of ``docs/plans/completed/manual_input_stored_length_resq_alignment.md`` relaxes
 that refusal on the development axis alone: values entered at a coarser
 development view are scattered into the stored cells at their valuation dates.
+
+The linked shape is a third pair kept apart from both: the display the
+dataset's cell links were written against. It moves only when the links do,
+so the display can be changed and saved over a linked dataset.
 """
 
 from __future__ import annotations
@@ -102,6 +106,8 @@ class ManualDatasetStoredShapeSaveTests(unittest.TestCase):
         stored_development_length: int | None = None,
         stored_values_cleared: bool = False,
         data_format: str = "Triangle",
+        external_links=None,
+        display_at=None,
     ):
         written: dict = {}
 
@@ -144,6 +150,8 @@ class ManualDatasetStoredShapeSaveTests(unittest.TestCase):
                 stored_development_length=stored_development_length,
                 stored_values_cleared=stored_values_cleared,
                 values=values,
+                external_links=external_links,
+                display_at=display_at,
             )
 
         return result, written.get("payload")
@@ -342,6 +350,75 @@ class ManualDatasetStoredShapeSaveTests(unittest.TestCase):
         self.assertTrue(os.path.exists(os.path.join(self.data_dir, ANNUAL_OVER_MONTHLY_CSV)))
         self.assertFalse(os.path.exists(monthly_path))
 
+    def test_a_finer_store_and_the_values_can_arrive_in_one_save(self) -> None:
+        """The GUI walk-through: lower the store, paste a 10x10, press Save once.
+
+        ResQ keeps the stored development length the user chose through the
+        paste and the save (probe case B2), storing each annual figure at its
+        own column age, so this save must record (12, 1) rather than moving the
+        store up to the 12 the grid is shown at.
+        """
+        self.existing = {
+            **self.existing,
+            "origin_length": 12,
+            "development_length": 12,
+            "stored_origin_length": 12,
+            "stored_development_length": 12,
+            "csv_file": ANNUAL_CSV,
+        }
+        annual_path = self._write_stored_csv(
+            ANNUAL_CSV, [[0.0] * (10 - row) + [np.nan] * row for row in range(10)]
+        )
+        # ResQ's own numbers for this triangle, read back from the fake project
+        # by tools/resq_stored_length_probe.py.
+        annual = [
+            [1357, 1385, 1412, 1440, 1469, 1499, 1529, 1559, 1590, 1622],
+            [1493, 1523, 1553, 1585, 1616, 1649, 1682, 1715, 1749],
+            [1642, 1675, 1709, 1743, 1778, 1813, 1850, 1887],
+            [1807, 1843, 1880, 1917, 1956, 1995, 2035],
+            [1987, 2027, 2068, 2109, 2151, 2194],
+            [2186, 2230, 2274, 2320, 2366],
+            [2405, 2453, 2502, 2552],
+            [2645, 2698, 2752],
+            [2910, 2968],
+            [3201],
+        ]
+        entered = [
+            [float(value) for value in row] + [None] * (10 - len(row)) for row in annual
+        ]
+
+        with self._probe_general_settings():
+            result, payload = self._save(
+                origin_length=12,
+                development_length=12,
+                stored_development_length=1,
+                values=entered,
+            )
+
+        self.assertEqual(payload["origin_length"], 12)
+        self.assertEqual(payload["development_length"], 12)
+        self.assertEqual(payload["stored_origin_length"], 12)
+        self.assertEqual(payload["stored_development_length"], 1)
+        self.assertEqual(payload["csv_file"], ANNUAL_OVER_MONTHLY_CSV)
+        self.assertEqual(result["stored_development_length"], 1)
+        self.assertFalse(os.path.exists(annual_path))
+
+        written = dataset_service.load_triangle_values(
+            os.path.join(self.data_dir, ANNUAL_OVER_MONTHLY_CSV)
+        )
+        self.assertEqual(written.shape, (10, 113))
+        for row_index, row in enumerate(annual):
+            stored = written.iloc[row_index].tolist()
+            expected = {4 + 12 * column: float(value) for column, value in enumerate(row)}
+            width = 113 - 12 * row_index
+            for column in range(width):
+                self.assertEqual(
+                    stored[column],
+                    expected.get(column, 0.0),
+                    f"origin {2017 + row_index}, {column + 1} months",
+                )
+            self.assertTrue(all(bool(pd.isna(value)) for value in stored[width:]))
+
     def test_stored_development_length_must_divide_the_display_length(self) -> None:
         self._write_stored_csv(MONTHLY_CSV, [[0.0, 0.0], [0.0, np.nan]])
 
@@ -397,6 +474,85 @@ class ManualDatasetStoredShapeSaveTests(unittest.TestCase):
         self.assertEqual(payload["csv_file"], ANNUAL_VECTOR_CSV)
         self.assertEqual(result["stored_period_length"], 12)
         self.assertEqual(result["stored_development_length"], 12)
+
+
+class LinkedShapeSaveTests(ManualDatasetStoredShapeSaveTests):
+    """The display the links were written against moves only with the links."""
+
+    LINK = {
+        "reference": "='C:\\Books\\[Book.xlsx]Sheet 1'!$A$1",
+        "target_cells": [{"row": 0, "column": 0, "source_cell": "A1"}],
+    }
+
+    def test_new_links_are_written_against_the_shape_the_save_comes_at(self) -> None:
+        self._write_stored_csv(MONTHLY_CSV, [[100.0, 110.0], [120.0, np.nan]])
+
+        result, payload = self._save(origin_length=1, development_length=1, external_links=[self.LINK])
+
+        self.assertEqual(payload["linked_origin_length"], 1)
+        self.assertEqual(payload["linked_development_length"], 1)
+        self.assertEqual(result["linked_origin_length"], 1)
+        self.assertEqual(result["linked_development_length"], 1)
+
+    def test_a_display_save_over_unchanged_links_keeps_the_linked_shape(self) -> None:
+        # The case from the Data tab: a monthly dataset with an Excel range
+        # linked at 1/1 is shown yearly and saved. The display moves, the
+        # links stay filed against the monthly grid, and the file is untouched.
+        self.existing["external_links"] = [self.LINK]
+        self.existing["linked_origin_length"] = 1
+        self.existing["linked_development_length"] = 1
+        self._write_stored_csv(MONTHLY_CSV, [[100.0, 110.0], [120.0, np.nan]])
+
+        result, payload = self._save(origin_length=12, development_length=12, external_links=[self.LINK])
+
+        self.assertEqual((payload["origin_length"], payload["development_length"]), (12, 12))
+        self.assertEqual((payload["linked_origin_length"], payload["linked_development_length"]), (1, 1))
+        self.assertEqual((payload["stored_origin_length"], payload["stored_development_length"]), (1, 1))
+        self.assertEqual(payload["csv_file"], MONTHLY_CSV)
+        self.assertEqual((result["linked_origin_length"], result["linked_development_length"]), (1, 1))
+
+    def test_a_sidecar_that_states_no_linked_shape_was_linked_at_its_display(self) -> None:
+        self.existing["external_links"] = [self.LINK]
+        self._write_stored_csv(MONTHLY_CSV, [[100.0, 110.0], [120.0, np.nan]])
+
+        _result, payload = self._save(origin_length=12, development_length=12, external_links=[self.LINK])
+
+        self.assertEqual((payload["linked_origin_length"], payload["linked_development_length"]), (1, 1))
+
+    def test_clearing_every_link_drops_the_linked_shape(self) -> None:
+        self.existing["external_links"] = [self.LINK]
+        self.existing["linked_origin_length"] = 1
+        self.existing["linked_development_length"] = 1
+        self._write_stored_csv(MONTHLY_CSV, [[100.0, 110.0], [120.0, np.nan]])
+
+        _result, payload = self._save(origin_length=1, development_length=1, external_links=[])
+
+        self.assertNotIn("linked_origin_length", payload)
+        self.assertNotIn("linked_development_length", payload)
+
+    def test_display_at_records_the_display_apart_from_the_values_shape(self) -> None:
+        # A link refresh reads and writes the cells at the linked shape while
+        # the dataset is shown at another, and says which display to keep.
+        self.existing["external_links"] = [self.LINK]
+        self.existing["linked_origin_length"] = 1
+        self.existing["linked_development_length"] = 1
+        self.existing["origin_length"] = 12
+        self.existing["development_length"] = 12
+        self._write_stored_csv(MONTHLY_CSV, [[100.0, 110.0], [120.0, np.nan]])
+
+        _result, payload = self._save(
+            origin_length=1,
+            development_length=1,
+            values=[[130.0, 110.0], [120.0, None]],
+            external_links=[self.LINK],
+            display_at=(12, 12),
+        )
+
+        self.assertEqual((payload["origin_length"], payload["development_length"]), (12, 12))
+        self.assertEqual((payload["linked_origin_length"], payload["linked_development_length"]), (1, 1))
+        self.assertEqual(payload["csv_file"], MONTHLY_CSV)
+        written = pd.read_csv(os.path.join(self.data_dir, MONTHLY_CSV), header=None)
+        self.assertEqual(written.iloc[0, 0], 130.0)
 
 
 if __name__ == "__main__":

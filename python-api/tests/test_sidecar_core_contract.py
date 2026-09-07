@@ -21,6 +21,8 @@ from arcrho_api.sidecar_core_contract import (  # noqa: E402
     SIDECAR_STORED_PERIOD_FIELD,
     SidecarContractError,
     display_lengths,
+    linked_length_fields,
+    linked_lengths,
     stored_length_fields,
     stored_lengths,
     validate_sidecar_core,
@@ -303,6 +305,35 @@ class ValidatorTests(unittest.TestCase):
             (12, 12),
         )
         self.assertEqual(display_lengths({"data_format": "Triangle", "stored_origin_length": 1}), (0, 0))
+
+    def test_the_linked_shape_is_its_own_pair_and_defaults_to_the_display(self) -> None:
+        # The display a dataset's cell links were written against is recorded
+        # apart from the display it is shown at now; a sidecar that states none
+        # was saved with its links at the display it records.
+        self.assertEqual(
+            linked_length_fields("Triangle", 1, 1),
+            {"linked_origin_length": 1, "linked_development_length": 1},
+        )
+        self.assertEqual(linked_length_fields("Vector", 3), {"linked_period_length": 3})
+        self.assertEqual(
+            linked_lengths({
+                "data_format": "Triangle",
+                "origin_length": 12,
+                "development_length": 12,
+                "linked_origin_length": 1,
+                "linked_development_length": 1,
+            }),
+            (1, 1),
+        )
+        self.assertEqual(
+            linked_lengths({"data_format": "Triangle", "origin_length": 12, "development_length": 12}),
+            (12, 12),
+        )
+        self.assertEqual(
+            linked_lengths({"data_format": "Vector", "period_length": 12, "linked_period_length": 3}),
+            (3, 3),
+        )
+        self.assertEqual(linked_lengths({"data_format": "Vector", "period_length": 12}), (12, 12))
 
     def test_the_audit_log_must_be_last(self) -> None:
         sidecar = _engine_sidecar()

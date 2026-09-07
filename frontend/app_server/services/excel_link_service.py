@@ -43,7 +43,7 @@ from arcrho_api.dfm_contract import (
     normalize_dfm_method,
     _evaluate_internal_formula,
 )
-from arcrho_api.sidecar_core_contract import stored_lengths
+from arcrho_api.sidecar_core_contract import display_lengths, stored_lengths
 from app_server import config
 from app_server.services import (
     dataset_sidecar_status_service,
@@ -939,18 +939,19 @@ def _retarget_dataset(
     refreshed = changed = failed = 0
     errors: List[str] = []
     values: List[List[Any]] | None = None
-    display_lengths: Tuple[int, int] | None = None
+    linked_lengths: Tuple[int, int] | None = None
     try:
-        # A link names a cell of the grid its dataset is displayed at, which is
-        # not the file's own grid when the file is stored finer, so the values
-        # the link cells index are read at that display and written back the
-        # same way -- the save puts them into the store as any save from that
-        # view does.
+        # A link names a cell of the grid its dataset was displayed at when it
+        # was written, which is not the file's own grid when the file is
+        # stored finer, so the values the link cells index are read at that
+        # display and written back the same way -- the save puts them into the
+        # store as any save from that view does, and records the display the
+        # dataset is shown at now, which may have moved on since.
         model = dataset_service.load_cached_dataset_values(
-            project, reserving, name, at_display_shape=True
+            project, reserving, name, at_linked_shape=True
         )
         values = [list(row) for row in model.get("values") or []]
-        display_lengths = (
+        linked_lengths = (
             int(model.get("origin_length") or 0),
             int(model.get("development_length") or 0),
         )
@@ -970,11 +971,11 @@ def _retarget_dataset(
             links, values, new_key, read_map, new_book_path
         )
 
-    # The shape the values above were read at: the dataset's own display, which
-    # is the sidecar's display pair, and the file's own shape whenever the two
-    # are the same. The save carries them into the store from there.
+    # The shape the values above were read at: the display the links were
+    # written against, and the file's own shape whenever the two are the same.
+    # The save carries them into the store from there.
     stored_origin, stored_development = stored_lengths(payload)
-    origin_length, development_length = display_lengths or (0, 0)
+    origin_length, development_length = linked_lengths or (0, 0)
     origin_length = int(origin_length or stored_origin or (len(values) if values else 0) or 1)
     development_length = int(
         development_length
@@ -991,6 +992,7 @@ def _retarget_dataset(
         data_format=payload.get("data_format") or "Triangle",
         origin_length=origin_length,
         development_length=development_length,
+        display_at=display_lengths(payload),
         cumulative=bool(payload.get("cumulative", True)),
         transposed=bool(payload.get("transposed")),
         calendar=bool(payload.get("calendar")),

@@ -437,6 +437,52 @@ class RefreshDatasetLinksTests(unittest.TestCase):
         self.assertEqual(result["reason"], "link_error")
         self.assertIn("Missing dependency: Gone", result["errors"][0])
 
+    def test_the_target_is_read_at_the_shape_its_links_were_written_at(self) -> None:
+        # A link names a cell of the display the dataset was shown at when the
+        # link was written, so the refresh asks for the dataset at that shape
+        # rather than at the file's own rows.
+        datasets = {
+            "Source": _vector("Source", [5.0]),
+            "Target": _vector(
+                "Target",
+                [0.0],
+                links={
+                    "internal_links": [{
+                        "reference": "=[Source][1:1]",
+                        "target_cells": [{"row": 0, "column": 0, "source_row": 0, "source_column": 0}],
+                    }],
+                },
+            ),
+        }
+        calls = []
+
+        def fake_load(_project, _rc, name, **kwargs):
+            calls.append((name, kwargs))
+            return {
+                "dataset_name": name,
+                "data_format": "Vector",
+                "values": copy.deepcopy(datasets[name]["values"]),
+                "origin_labels": ["2024"],
+                "dev_labels": ["Ultimate"],
+                "path": f"{name}.csv",
+            }
+
+        with (
+            patch.object(dataset_sidecar_status_service, "sidecar_path", side_effect=lambda _p, _rc, n: n),
+            patch.object(
+                dataset_sidecar_status_service,
+                "read_sidecar",
+                side_effect=lambda path: copy.deepcopy(datasets[path]["sidecar"]),
+            ),
+            patch.object(dataset_service, "load_cached_dataset_values", side_effect=fake_load),
+            patch.object(dataset_service, "_write_dataset_csv_and_sidecar"),
+        ):
+            result = dataset_link_refresh_service.refresh_dataset_links("Project", "Class", "Target")
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(calls[0][0], "Target")
+        self.assertIs(calls[0][1].get("at_linked_shape"), True)
+
     def test_an_internal_link_copies_by_stored_source_coordinates(self) -> None:
         datasets = {
             "Source": _vector("Source", [5.0, 6.0, 7.0]),

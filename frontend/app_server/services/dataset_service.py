@@ -29,6 +29,8 @@ from arcrho_api.sidecar_audit_contract import (
 from arcrho_api.sidecar_core_contract import (
     display_lengths,
     finalize_sidecar,
+    linked_length_fields,
+    linked_lengths,
     stored_length_fields,
     stored_lengths,
 )
@@ -1780,6 +1782,7 @@ def load_dataset_sidecar(project_name: str, reserving_class: str, dataset_name: 
     origin_length = period_length if is_vector else payload.get("origin_length")
     development_length = period_length if is_vector else payload.get("development_length")
     stored_origin_length, stored_development_length = stored_lengths(payload)
+    linked_origin_length, linked_development_length = linked_lengths(payload)
     calculation_map = _dataset_type_calculation_map(p)
     # Both chip rows resolve their neighbours from the same index read, so a
     # graph is one lookup wide however many precedents and dependents it holds.
@@ -1829,6 +1832,11 @@ def load_dataset_sidecar(project_name: str, reserving_class: str, dataset_name: 
         "stored_period_length": stored_origin_length if is_vector else None,
         "stored_origin_length": stored_origin_length,
         "stored_development_length": stored_development_length,
+        # The display the dataset's cell links were written against, which the
+        # display pair above may since have left behind.
+        "linked_period_length": linked_origin_length if is_vector else None,
+        "linked_origin_length": linked_origin_length,
+        "linked_development_length": linked_development_length,
         "origin_labels": _normalize_origin_labels(payload.get("origin_labels")),
         "cumulative": payload.get("cumulative"),
         "transposed": payload.get("transposed"),
@@ -1943,6 +1951,7 @@ def load_cached_dataset_values(
     cumulative: bool = True,
     calendar: bool = False,
     at_display_shape: bool = False,
+    at_linked_shape: bool = False,
 ) -> Dict[str, Any]:
     """Read a dataset's CSV with the sidecar settings a window needs beside it.
 
@@ -1953,7 +1962,9 @@ def load_cached_dataset_values(
     ``at_display_shape`` a hand-entered dataset shown coarser than it is
     stored is rolled up to the display shape its sidecar saved, the view the
     Dataset window opens at, built from the stored CSV the same way a run
-    builds it and never written beside it.
+    builds it and never written beside it. ``at_linked_shape`` rolls it up
+    the same way to the display its cell links were written against, which
+    is where a link refresh reads and writes its cells.
     """
     p, rc, ds = _require_dataset_fields(project_name, reserving_class, dataset_name)
     sidecar_path = _get_dataset_sidecar_path(p, rc, ds)
@@ -2023,10 +2034,18 @@ def load_cached_dataset_values(
     resolved_development_length = _int_or_default(parsed_name.get("development_length") or sidecar_development_length, max(1, len(values[0]) if values else 1))
     if not (sidecar_origin_length and sidecar_development_length):
         sidecar_origin_length, sidecar_development_length = resolved_origin_length, resolved_development_length
+    linked_origin_length, linked_development_length = linked_lengths(sidecar)
     dataset_id = "arcrhotri_" + hashlib.sha1(csv_path.encode("utf-8")).hexdigest()[:16]
     handle_path = csv_path
-    if at_display_shape:
-        view = _display_view_of_stored_values(p, ds, sidecar, csv_path, values)
+    if at_display_shape or at_linked_shape:
+        view = _display_view_of_stored_values(
+            p,
+            ds,
+            sidecar,
+            csv_path,
+            values,
+            linked_lengths(sidecar) if at_linked_shape else display_lengths(sidecar),
+        )
         if view is not None:
             values, resolved_origin_length, resolved_development_length, dataset_id, handle_path = view
     origin_labels, _ = _validate_origin_labels(
@@ -2107,6 +2126,9 @@ def load_cached_dataset_values(
         "stored_period_length": sidecar_origin_length if is_vector else None,
         "stored_origin_length": sidecar_origin_length,
         "stored_development_length": sidecar_development_length,
+        "linked_period_length": linked_origin_length if is_vector else None,
+        "linked_origin_length": linked_origin_length,
+        "linked_development_length": linked_development_length,
         "origin_labels": origin_labels,
         "dev_labels": development_labels,
         "mask": mask,
@@ -2143,12 +2165,13 @@ def _display_view_of_stored_values(
     sidecar: Dict[str, Any],
     csv_path: str,
     values: List[List[Any]],
+    target: Tuple[int, int],
 ) -> Tuple[List[List[Any]], int, int, str, str] | None:
-    """Roll a hand-entered dataset's stored rows up to the shape it is shown at.
+    """Roll a hand-entered dataset's stored rows up to the *target* lengths.
 
     Returns ``(values, origin_length, development_length, dataset_id, path)``
-    for the view, or ``None`` when the sidecar's display shape is the stored
-    one or the file cannot be rolled up to it. The view is registered under
+    for the view, or ``None`` when *target* is the stored shape or the file
+    cannot be rolled up to it. The view is registered under
     its own handle, the id of the file a dataset created at that shape would
     have, so the id-addressed grid routes serve the same roll-up; nothing is
     written, because the stored CSV is the only copy of the figures.
@@ -2156,7 +2179,7 @@ def _display_view_of_stored_values(
 
     from app_server.services import precedent_cache_service
 
-    display_origin, display_development = display_lengths(sidecar)
+    display_origin, display_development = target
     if (display_origin, display_development) == stored_lengths(sidecar):
         return None
     if precedent_cache_service.rollup_reason(sidecar, display_origin, display_development):
@@ -2221,6 +2244,77 @@ def _stored_csv_holds_values(csv_path: str) -> bool:
     return _frame_holds_values(load_triangle_values(csv_path))
 
 
+_DATASET_LINK_FIELDS = (
+    ("external_links", _normalize_dataset_external_links),
+    ("internal_links", _normalize_dataset_internal_links),
+    ("formula_links", _normalize_dataset_formula_links),
+)
+
+
+def _record_linked_shape(
+    payload: Dict[str, Any],
+    existing: Dict[str, Any],
+    data_format: str,
+    origin_length: int,
+    development_length: int,
+) -> None:
+    """Stamp *payload* with the display its cell links were written against.
+
+    A link names a cell of the grid that was on screen when it was entered,
+    so the shape this save's values come at becomes the linked shape whenever
+    the links themselves changed, and the shape the sidecar already records
+    stays whenever they did not -- the display may have moved on without them.
+    A sidecar with no link carries no linked shape.
+    """
+
+    for field in ("linked_period_length", "linked_origin_length", "linked_development_length"):
+        payload.pop(field, None)
+    if not any(payload.get(field) for field, _normalize in _DATASET_LINK_FIELDS):
+        return
+    links_changed = any(
+        normalize(payload.get(field)) != normalize(existing.get(field))
+        for field, normalize in _DATASET_LINK_FIELDS
+    )
+    linked = (origin_length, development_length) if links_changed else linked_lengths(existing)
+    payload.update(linked_length_fields(data_format, *linked))
+
+
+def scatter_view_into_store(
+    project_name: str,
+    values_frame: pd.DataFrame,
+    *,
+    stored_lengths: Tuple[int, int],
+    view_lengths: Tuple[int, int],
+    cumulative: bool,
+) -> pd.DataFrame:
+    """Write a coarser development view of a triangle into its stored cells.
+
+    Each cell of the view is the row's cumulative figure at its valuation
+    date, so it goes to the stored cell valued there and the rest of the
+    store goes to zero, the way ResQ rebuilds a triangle written at a coarse
+    display. A coarser origin row has no single cell to write to, so the
+    origin lengths must agree.
+    """
+
+    if view_lengths[0] != stored_lengths[0]:
+        raise HTTPException(400, "Values can be entered only at the stored origin period.")
+    return pd.DataFrame(
+        scatter_triangle(
+            [
+                [None if pd.isna(cell) else float(cell) for cell in row]
+                for row in values_frame.to_numpy()
+            ],
+            source_origin_length=stored_lengths[0],
+            source_development_length=stored_lengths[1],
+            target_origin_length=view_lengths[0],
+            target_development_length=view_lengths[1],
+            valuation_months=valuation_months(project_name),
+            cumulative=bool(cumulative),
+        ),
+        dtype="float64",
+    )
+
+
 def _save_dataset_sidecar_impl(
     project_name: str,
     reserving_class: str,
@@ -2232,6 +2326,7 @@ def _save_dataset_sidecar_impl(
     data_format: str = "",
     origin_length: int,
     development_length: int,
+    display_at: Tuple[int, int] | None = None,
     stored_development_length: int | None = None,
     stored_values_cleared: bool = False,
     cumulative: bool = True,
@@ -2255,6 +2350,14 @@ def _save_dataset_sidecar_impl(
     p, rc, ds = _require_dataset_fields(project_name, reserving_class, dataset_name)
     if origin_length <= 0 or development_length <= 0:
         raise HTTPException(400, "origin_length and development_length must be positive.")
+    # ``origin_length`` / ``development_length`` are the shape ``values`` come
+    # at and, unless ``display_at`` says otherwise, the display the sidecar
+    # records. A link refresh reads and writes at the linked shape while the
+    # dataset is shown at another, and passes that display here.
+    display_origin_months, display_development_months = display_at or (
+        int(origin_length),
+        int(development_length),
+    )
     normalized_external_links = (
         _normalize_dataset_external_links(external_links, strict=True)
         if external_links is not None
@@ -2422,7 +2525,7 @@ def _save_dataset_sidecar_impl(
         "updated_at": updated_at,
     }
     if is_vector:
-        payload["period_length"] = int(origin_length)
+        payload["period_length"] = display_origin_months
         for obsolete_key in (
             "origin_length",
             "development_length",
@@ -2431,15 +2534,18 @@ def _save_dataset_sidecar_impl(
             "calendar",
             "stored_origin_length",
             "stored_development_length",
+            "linked_origin_length",
+            "linked_development_length",
         ):
             payload.pop(obsolete_key, None)
     else:
-        payload["origin_length"] = int(origin_length)
-        payload["development_length"] = int(development_length)
+        payload["origin_length"] = display_origin_months
+        payload["development_length"] = display_development_months
         payload["cumulative"] = bool(cumulative)
         payload["calendar"] = bool(calendar)
         payload.pop("period_length", None)
         payload.pop("stored_period_length", None)
+        payload.pop("linked_period_length", None)
     if values is not None or csv_file or relabel_empty_input:
         # This save names the CSV -- it writes one from ``values``, relabels an
         # empty one, or the caller published one and passed its name -- so the
@@ -2457,6 +2563,7 @@ def _save_dataset_sidecar_impl(
         payload["internal_links"] = normalized_internal_links
     if normalized_formula_links is not None:
         payload["formula_links"] = normalized_formula_links
+    _record_linked_shape(payload, existing, data_format_value, int(origin_length), int(development_length))
     _require_disjoint_dataset_link_targets(
         _normalize_dataset_external_links(payload.get("external_links")),
         _normalize_dataset_internal_links(payload.get("internal_links")),
@@ -2502,24 +2609,12 @@ def _save_dataset_sidecar_impl(
             # row's cumulative figure at its valuation date, so it goes to the
             # stored cell valued there and the rest of the store goes to zero,
             # the way ResQ rebuilds a triangle written at a coarse display.
-            if int(origin_length) != stored_origin_months:
-                raise HTTPException(
-                    400, "Values can be entered only at the stored origin period."
-                )
-            df = pd.DataFrame(
-                scatter_triangle(
-                    [
-                        [None if pd.isna(cell) else float(cell) for cell in row]
-                        for row in values_frame.to_numpy()
-                    ],
-                    source_origin_length=stored_origin_months,
-                    source_development_length=stored_development_months,
-                    target_origin_length=int(origin_length),
-                    target_development_length=int(development_length),
-                    valuation_months=valuation_months(p),
-                    cumulative=bool(cumulative),
-                ),
-                dtype="float64",
+            df = scatter_view_into_store(
+                p,
+                values_frame,
+                stored_lengths=(stored_origin_months, stored_development_months),
+                view_lengths=(int(origin_length), int(development_length)),
+                cumulative=bool(cumulative),
             )
         else:
             # Values arrive at the display shape, which a store finer than the
@@ -2642,6 +2737,11 @@ def _save_dataset_sidecar_impl(
         "stored_period_length": saved_stored_lengths[0] if is_vector else None,
         "stored_origin_length": saved_stored_lengths[0],
         "stored_development_length": saved_stored_lengths[1],
+        # And the linked pair, which this save may have left where it was while
+        # the display moved on.
+        "linked_period_length": linked_lengths(payload)[0] if is_vector else None,
+        "linked_origin_length": linked_lengths(payload)[0],
+        "linked_development_length": linked_lengths(payload)[1],
         "origin_labels": _normalize_origin_labels(payload.get("origin_labels")),
         "cumulative": payload.get("cumulative"),
         "transposed": payload["transposed"],

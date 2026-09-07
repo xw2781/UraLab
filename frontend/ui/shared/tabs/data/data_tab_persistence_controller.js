@@ -22,6 +22,8 @@ export function registerDataTabPersistenceController(runtime) {
   let notesContextKey = "", notesContextPayload = null, notesDirty = false, lastSavedNotesText = "", datasetNotesController = null, datasetSettingsDirty = false, sidecarContextKey = "", sidecarContextPayload = null, lastSavedDatasetSettings = null, sidecarSyncNonce = 0, datasetExternalLinksLoaded = false, datasetCloseConfirm = null, hostInputsPublished = false;
   let datasetExcelLinkCheckAbortController = null;
   let storedDevelopmentChoice = 0, storedDevelopmentChoiceDisplay = 0;
+  // Whether the open dataset's file holds a value. See savedDatasetHoldsNoValue.
+  let savedDatasetIsEmpty = true;
   // The lengths a cleared hand-entered dataset was reshaped to, or null while
   // the window still shows the shape of the dataset's own file. See
   // releaseStoredShape.
@@ -277,6 +279,16 @@ export function registerDataTabPersistenceController(runtime) {
     return true;
   }
 
+  // Whether the dataset's own file holds a value, which is a different question
+  // from whether the grid on screen does. An edit writes straight into
+  // `state.model.values`, so once anything is dirty the grid can no longer be
+  // asked; the answer taken while it still matched the file stands until the
+  // next load or save replaces it.
+  function savedDatasetHoldsNoValue() {
+    if (!(state.dirty?.size > 0)) savedDatasetIsEmpty = datasetValuesAreAllZero();
+    return savedDatasetIsEmpty;
+  }
+
   // The period the open dataset's own file is held at, as the sidecar records
   // it. Zero means it is not known yet, which is the state before a sidecar has
   // loaded and for a draft that has never been saved.
@@ -286,11 +298,16 @@ export function registerDataTabPersistenceController(runtime) {
     const source = payload && typeof payload === "object" ? payload : {};
     runtime.currentDatasetStoredOriginLength = Number(source.stored_origin_length) || 0;
     runtime.currentDatasetStoredDevelopmentLength = Number(source.stored_development_length) || 0;
+    runtime.currentDatasetLinkedOriginLength = Number(source.linked_origin_length) || 0;
+    runtime.currentDatasetLinkedDevelopmentLength = Number(source.linked_development_length) || 0;
     // Whatever the sidecar now says is the answer, so any store the user had
     // asked for and not yet saved is spent, and so is a clear-and-reshape.
     storedDevelopmentChoice = 0;
     storedDevelopmentChoiceDisplay = 0;
     releasedLengths = null;
+    // A save has just written the grid to the file, so the grid answers for it
+    // again even though its cells are still marked as edits.
+    savedDatasetIsEmpty = datasetValuesAreAllZero();
   }
 
   function getStoredLengthPair() {
@@ -307,8 +324,13 @@ export function registerDataTabPersistenceController(runtime) {
   // the whole ladder stays open and the readout says so. A dataset cleared and
   // then reshaped stays in that state once values are entered again, because
   // the shape those values sit at is the one the next save stores.
+  // ResQ fixes the store on the first value a triangle is *saved* with, not on
+  // the first value typed into it, so values waiting to be saved -- a pasted
+  // 10x10 over a store the user has just lowered -- leave the choice standing
+  // and travel to the server with it.
   function storedLengthIsPending() {
-    return currentDatasetIsManualTriangleOrVector() && (datasetValuesAreAllZero() || releasedLengths !== null);
+    return currentDatasetIsManualTriangleOrVector()
+      && (savedDatasetHoldsNoValue() || releasedLengths !== null);
   }
 
   // Once every value of a hand-entered dataset is 0 and a length control
@@ -416,20 +438,31 @@ export function registerDataTabPersistenceController(runtime) {
     return stored.origin_length > 0 && current.origin_length > stored.origin_length;
   }
 
+  // Read against the period the next save will write at, not the one the
+  // sidecar records, so a dataset that is still empty and has just been told to
+  // store its figures finer than it shows them says so before that first save.
   function datasetDevelopmentDisplayIsCoarserThanStored() {
-    if (storedLengthIsPending() || currentDatasetIsVector()) return false;
-    const stored = getStoredLengthPair();
+    if (currentDatasetIsVector()) return false;
+    const stored = getStoredLengthControlPair();
     const current = getCurrentLengthControlValues();
     return stored.development_length > 0 && current.development_length > stored.development_length;
   }
 
-  // The lengths the open dataset's links were read at: the display its sidecar
-  // was last loaded or saved with. A link names a cell of the grid that was on
-  // screen when it was written, so that grid, not the period the file is held
-  // at, is the one it still points into. A triangle kept monthly under a yearly
-  // display carries yearly links, and they stay live at the yearly view.
+  // The lengths the open dataset's links were written at, as the sidecar
+  // records them. A link names a cell of the grid that was on screen when it
+  // was written, so that grid -- not the period the file is held at, nor the
+  // display the dataset has since been saved at -- is the one it still points
+  // into. A triangle kept monthly under a yearly display carries yearly links,
+  // and they stay live at the yearly view. Links entered here and not yet
+  // saved belong to the display the sidecar was last loaded or saved with.
   function datasetLinkedDisplayLengths() {
-    const settings = lastSavedDatasetSettings;
+    const linked = Number(runtime.currentDatasetLinkedOriginLength);
+    const settings = linked > 0
+      ? {
+        origin_length: linked,
+        development_length: Number(runtime.currentDatasetLinkedDevelopmentLength),
+      }
+      : lastSavedDatasetSettings;
     const origin = Number(settings?.origin_length);
     const development = Number(settings?.development_length);
     if (!Number.isFinite(origin) || origin <= 0) return null;
@@ -442,11 +475,13 @@ export function registerDataTabPersistenceController(runtime) {
   // Only at that display does a saved link name a square the grid has: every
   // cell of a different view stands for other cells entirely, so a link read,
   // checked, painted, or refreshed there would land on the wrong one. The whole
-  // link inventory therefore stands still until the lengths come back. A
-  // dataset that holds nothing has no link worth protecting and its shape
-  // follows the display, so it is never held still.
+  // link inventory therefore stands still until the lengths come back, while
+  // the display itself may move and be saved: the sidecar keeps the linked
+  // lengths apart from the display ones. A dataset that holds nothing, or no
+  // link, has nothing worth protecting and is never held still.
   function datasetDisplayIsAtLinkedShape() {
     if (storedLengthIsPending()) return true;
+    if (!linkControllerNames.some((name) => runtime[name].hasLinks())) return true;
     const linked = datasetLinkedDisplayLengths();
     if (!linked) return true;
     const current = getCurrentLengthControlValues();
@@ -457,15 +492,14 @@ export function registerDataTabPersistenceController(runtime) {
   }
 
   // One sentence for a linked dataset being viewed at other lengths than its
-  // links were read at: which length to put back, named the way the control
-  // beside it is labelled, and what putting it back allows. The formula bar and
-  // the save refusal both say it, so they always name the same lengths.
-  function datasetOffLinkedShapeLinkHint(allows = "view or edit the formula") {
+  // links were written at: which length to put back, named the way the control
+  // beside it is labelled.
+  function datasetOffLinkedShapeLinkHint() {
     if (datasetDisplayIsAtLinkedShape()) return "";
     const linked = datasetLinkedDisplayLengths();
     if (!linked) return "";
     if (currentDatasetIsVector()) {
-      return `This dataset's cells are linked. Set the length to ${linked.origin_length} to ${allows}.`;
+      return `This dataset's cells are linked. Set the length to ${linked.origin_length} to view or edit the formula.`;
     }
     const current = getCurrentLengthControlValues();
     const lengths = [];
@@ -474,7 +508,7 @@ export function registerDataTabPersistenceController(runtime) {
       lengths.push(`Development Length to ${linked.development_length}`);
     }
     if (!lengths.length) return "";
-    return `This dataset's cells are linked. Set ${lengths.join(" and ")} to ${allows}.`;
+    return `This dataset's cells are linked. Set ${lengths.join(" and ")} to view or edit the formula.`;
   }
 
   function datasetCoarserViewMessage() {
@@ -489,12 +523,23 @@ export function registerDataTabPersistenceController(runtime) {
   // the status line says so in one sentence for as long as that view is up.
   function datasetCoarseDevelopmentNote() {
     if (!datasetDevelopmentDisplayIsCoarserThanStored()) return "";
-    const stored = getStoredLengthPair();
+    const stored = getStoredLengthControlPair();
     return `Saving here writes each value into the stored period (Development ${stored.development_length}) at its own column age and clears the stored periods between.`;
   }
 
+  // The finest period a length control may offer. A dataset whose file still
+  // holds nothing has the whole ladder, except that values entered and not yet
+  // saved are held at the shape they were entered at until they are -- which is
+  // what validateManualDatasetLengthChange refuses -- so the ladder must not
+  // offer a length that refusal would bounce.
+  function manualDatasetLadderFloor() {
+    if (!storedLengthIsPending()) return getStoredLengthPair();
+    if (datasetValuesAreAllZero()) return { origin_length: 0, development_length: 0 };
+    return releasedLengths || getManualDatasetLengthBaseline();
+  }
+
   function applyStoredLengthChoices() {
-    const stored = storedLengthIsPending() ? { origin_length: 0, development_length: 0 } : getStoredLengthPair();
+    const stored = manualDatasetLadderFloor();
     setLenSelectStoredLength("originLenSelect", stored.origin_length);
     setLenSelectStoredLength("devLenSelect", stored.development_length);
   }
@@ -1084,14 +1129,6 @@ export function registerDataTabPersistenceController(runtime) {
     }
     if (await refreshDatasetInstanceNameConflict()) {
       return { ok: false, error: runtime.datasetInstanceNameConflictMessage || "Dataset instance name already exists." };
-    }
-    // A saved link names a cell of the grid its dataset was written at, and
-    // this save would record the lengths on screen as that grid. Writing it
-    // from another view would leave every link pointing at a cell it was never
-    // filed against, so the save asks for the lengths back instead.
-    const offLinkedShapeHint = datasetOffLinkedShapeLinkHint("save this dataset");
-    if (offLinkedShapeHint && linkControllerNames.some((name) => runtime[name].hasLinks())) {
-      return { ok: false, error: offLinkedShapeHint };
     }
     const context = buildDatasetSidecarContextPayload();
     if (!hasDatasetSidecarContext(context)) {

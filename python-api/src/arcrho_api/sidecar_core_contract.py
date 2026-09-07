@@ -110,6 +110,12 @@ SIDECAR_DISPLAY_DEVELOPMENT_FIELD = "development_length"
 SIDECAR_STORED_PERIOD_FIELD = "stored_period_length"
 SIDECAR_STORED_ORIGIN_FIELD = "stored_origin_length"
 SIDECAR_STORED_DEVELOPMENT_FIELD = "stored_development_length"
+# The display a dataset's cell links were written against. A link names a cell
+# of the grid that was on screen when it was entered, so the display can move
+# on and the links keep pointing into this one.
+SIDECAR_LINKED_PERIOD_FIELD = "linked_period_length"
+SIDECAR_LINKED_ORIGIN_FIELD = "linked_origin_length"
+SIDECAR_LINKED_DEVELOPMENT_FIELD = "linked_development_length"
 
 # What a length reads as when a file states none, which is how every consumer
 # already reads a missing one.
@@ -240,6 +246,41 @@ def display_lengths(payload: Mapping[str, Any]) -> tuple[int, int]:
         _stored_months(payload.get(SIDECAR_DISPLAY_ORIGIN_FIELD)),
         _stored_months(payload.get(SIDECAR_DISPLAY_DEVELOPMENT_FIELD)),
     )
+
+
+def linked_length_fields(
+    data_format: Any,
+    origin_length: Any,
+    development_length: Any = None,
+) -> dict[str, int]:
+    """The linked-shape fields a sidecar of *data_format* carries.
+
+    The same pair as :func:`stored_length_fields`, naming the display the
+    dataset's cell links were written against. Only a sidecar that holds a
+    link carries them.
+    """
+
+    if is_vector_format(data_format):
+        return {SIDECAR_LINKED_PERIOD_FIELD: int(origin_length)}
+    return {
+        SIDECAR_LINKED_ORIGIN_FIELD: int(origin_length),
+        SIDECAR_LINKED_DEVELOPMENT_FIELD: int(development_length),
+    }
+
+
+def linked_lengths(payload: Mapping[str, Any]) -> tuple[int, int]:
+    """The ``(origin, development)`` months per period *payload*'s links name.
+
+    A sidecar that states no linked shape was saved with its links at the
+    display it records, so that pair answers for it.
+    """
+
+    if is_vector_format(payload.get("data_format")):
+        period = _stored_months(payload.get(SIDECAR_LINKED_PERIOD_FIELD))
+        return (period, period) if period else display_lengths(payload)
+    origin = _stored_months(payload.get(SIDECAR_LINKED_ORIGIN_FIELD))
+    development = _stored_months(payload.get(SIDECAR_LINKED_DEVELOPMENT_FIELD))
+    return (origin, development) if origin and development else display_lengths(payload)
 
 
 def _stored_months(value: Any) -> int:
@@ -446,6 +487,9 @@ __all__ = [
     "SIDECAR_DISPLAY_ORIGIN_FIELD",
     "SIDECAR_DISPLAY_PERIOD_FIELD",
     "SIDECAR_JSON_FORMAT_FIELD",
+    "SIDECAR_LINKED_DEVELOPMENT_FIELD",
+    "SIDECAR_LINKED_ORIGIN_FIELD",
+    "SIDECAR_LINKED_PERIOD_FIELD",
     "SIDECAR_PRECEDENTS_FIELD",
     "SIDECAR_STORED_DEVELOPMENT_FIELD",
     "SIDECAR_STORED_ORIGIN_FIELD",
@@ -455,6 +499,8 @@ __all__ = [
     "dependency_names",
     "finalize_sidecar",
     "is_vector_format",
+    "linked_length_fields",
+    "linked_lengths",
     "stored_length_fields",
     "stored_length_fields_from_display",
     "stored_lengths",

@@ -1,0 +1,11 @@
+{
+  "type": "fix",
+  "scope": "dataset",
+  "audience": "user",
+  "summary": "A period chosen under \"Stored at\" is now kept when values are pasted in before the first save.",
+  "details": [
+    "Setting a hand-entered triangle to keep its figures monthly under a yearly view, pasting a 10x10 block and saving once now stores it monthly, as ResQ does, instead of moving the store up to the yearly view.",
+    "The \"Stored at\" control now stays open until the dataset is saved with a value in it, rather than closing as soon as something is typed or pasted.",
+    "This matters when the dataset is sent back to ResQ, which can only show the right column ages for a triangle kept at the finer period."
+  ]
+}

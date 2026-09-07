@@ -1,0 +1,11 @@
+{
+  "type": "fix",
+  "scope": "dataset",
+  "audience": "user",
+  "summary": "A linked dataset can now be shown and saved at other lengths than its links were entered at.",
+  "details": [
+    "Saving a monthly dataset with a linked Excel range at a yearly view no longer fails with \"This dataset's cells are linked. Set Origin Length to 1 and Development Length to 1 to save this dataset.\"",
+    "The dataset remembers the lengths its links were entered at apart from the lengths it is shown at, so the links wait at their own view and come back when the lengths do.",
+    "Refreshing links from Excel or from another dataset reads and writes them at the lengths they were entered at, whatever the dataset is shown at."
+  ]
+}
