@@ -1,0 +1,10 @@
+{
+  "type": "fix",
+  "scope": "berquist sherman",
+  "audience": "user",
+  "summary": "A Berquist-Sherman method can now use a generated dataset as its source, building the annual view it needs instead of refusing the method.",
+  "details": [
+    "A generated dataset records how fine the project's source table is rather than the shape of its own cache, which used to be read as 'not an annual dataset'.",
+    "When no annual cache exists, it is produced from the source table the same way a development factor method produces one."
+  ]
+}

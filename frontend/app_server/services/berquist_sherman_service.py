@@ -77,6 +77,7 @@ from app_server.services import (
     dataset_service,
     dataset_sidecar_status_service,
     dependent_propagation_service,
+    precedent_cache_service,
     user_identity_service,
 )
 
@@ -495,16 +496,24 @@ def _read_source_values(
     sidecar_format = _clean(sidecar.get("data_format")).lower()
     if sidecar_format != data_format.lower():
         raise RuntimeError(f"{label} must be an annual {data_format.lower()} dataset: {name}")
-    # Stored, not displayed: the CSV chosen below is the sidecar's own, so it
-    # is that file that has to hold annual periods.
-    if data_format == "Vector":
-        _annual_or_raise(sidecar, ("stored_period_length",), name)
-    else:
-        _annual_or_raise(sidecar, ("stored_origin_length", "stored_development_length"), name)
+    generated = _clean(sidecar.get("source_kind")).lower() == "engine"
+    if not generated:
+        # Stored, not displayed: the CSV chosen below is the sidecar's own, so
+        # it is that file that has to hold annual periods. A generated dataset
+        # is the one kind this cannot be asked of, because its stored pair
+        # records how fine the project's source table is rather than the shape
+        # of the cache beside it; that one is answered below instead.
+        if data_format == "Vector":
+            _annual_or_raise(sidecar, ("stored_period_length",), name)
+        else:
+            _annual_or_raise(sidecar, ("stored_origin_length", "stored_development_length"), name)
     data_dir = config.get_project_dataset_cache_dir(project_name, reserving_class)
     candidates: List[str] = []
     recorded = os.path.basename(_clean(sidecar.get("csv_file")))
-    if recorded:
+    # A generated dataset's own cache may sit at any period, so it is the annual
+    # name below that names the file to read; every other kind holds its values
+    # only in the CSV it names, which the check above has proved annual.
+    if recorded and not generated:
         candidates.append(os.path.join(data_dir, recorded))
     cache_name = build_dataset_cache_file_name(
         name,
@@ -516,6 +525,23 @@ def _read_source_values(
     )
     candidates.append(os.path.join(data_dir, f"{cache_name}.csv"))
     csv_path = next((path for path in candidates if os.path.isfile(path)), "")
+    if not csv_path and generated:
+        # The Engine rebuilds one of its own datasets at any period from the
+        # source table, so a missing annual cache is produced rather than
+        # refused, exactly as the DFM's precedent resolver produces it.
+        try:
+            csv_path = precedent_cache_service.materialize_engine_source(
+                project_name,
+                reserving_class,
+                name,
+                sidecar,
+                BS_ANNUAL_PERIOD_LENGTH,
+                development_length=BS_ANNUAL_PERIOD_LENGTH,
+            )
+        except RuntimeError as exc:
+            raise RuntimeError(
+                f"{label} could not be generated at annual periods: {name}: {exc}"
+            ) from exc
     if not csv_path:
         raise RuntimeError(f"B&S source CSV is missing: {name}")
     try:

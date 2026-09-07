@@ -290,6 +290,56 @@ class BerquistShermanRefreshTests(unittest.TestCase):
         self.assertFalse(report["ok"])
         self.assertIn("not an annual dataset", report["errors"][0]["reason"])
 
+    def test_a_generated_sources_source_table_granularity_is_not_read_as_its_shape(self) -> None:
+        self.write_workspace(saved_ultimate=[20, 20, 20], current_ultimate=[20, 20, 40])
+        ultimate_path = self.sidecars / "Ultimate Counts.json"
+        ultimate = self.read_json(ultimate_path)
+        # A generated dataset's stored pair is how fine the project's source
+        # table is, not the shape of the annual cache beside it, so the annual
+        # check must not read it.
+        ultimate["source_kind"] = "engine"
+        ultimate["stored_period_length"] = 1
+        self.write_json(ultimate_path, ultimate)
+
+        with mock.patch.object(berquist_sherman_service, "_refresh_downstream_domains"):
+            report = berquist_sherman_service.refresh_dependents(
+                "Project", "Class", ["Ultimate Counts"], rebuild_index=False, finalize_method_review_status=False
+            )
+
+        self.assertTrue(report["ok"], report)
+        csv_text = (self.datasets / f"{OUTPUT}@12@12@cum@dev.csv").read_text(encoding="utf-8")
+        self.assertEqual(csv_text, berquist_sherman_output_csv_text(self.expected_output([20, 20, 40]), 3))
+
+    def test_a_generated_source_without_an_annual_cache_is_rebuilt_at_the_annual_period(self) -> None:
+        self.write_workspace(saved_ultimate=[20, 20, 20], current_ultimate=[20, 20, 40])
+        ultimate_path = self.sidecars / "Ultimate Counts.json"
+        ultimate = self.read_json(ultimate_path)
+        ultimate["source_kind"] = "engine"
+        ultimate["stored_period_length"] = 1
+        ultimate["csv_file"] = "Ultimate Counts@1.csv"
+        self.write_json(ultimate_path, ultimate)
+        annual_cache = self.datasets / "Ultimate Counts@12.csv"
+        rebuilt = self.datasets / "Ultimate Counts@1.csv"
+        rebuilt.write_text(annual_cache.read_text(encoding="utf-8"), encoding="utf-8")
+        annual_cache.unlink()
+
+        with mock.patch.object(berquist_sherman_service, "_refresh_downstream_domains"), \
+                mock.patch.object(
+                    berquist_sherman_service.precedent_cache_service,
+                    "materialize_engine_source",
+                    return_value=str(rebuilt),
+                ) as materialize:
+            report = berquist_sherman_service.refresh_dependents(
+                "Project", "Class", ["Ultimate Counts"], rebuild_index=False, finalize_method_review_status=False
+            )
+
+        self.assertTrue(report["ok"], report)
+        materialize.assert_called_once()
+        self.assertEqual(materialize.call_args.args[2], "Ultimate Counts")
+        self.assertEqual(materialize.call_args.args[4], 12)
+        csv_text = (self.datasets / f"{OUTPUT}@12@12@cum@dev.csv").read_text(encoding="utf-8")
+        self.assertEqual(csv_text, berquist_sherman_output_csv_text(self.expected_output([20, 20, 40]), 3))
+
     def test_a_non_bs_dependent_is_left_to_the_central_cascade(self) -> None:
         self.write_workspace(saved_ultimate=[20, 20, 20], current_ultimate=[20, 20, 40])
         self.write_json(self.sidecars / "DFM Over Paid.json", {
