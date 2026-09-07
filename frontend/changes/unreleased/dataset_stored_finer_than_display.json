@@ -1,0 +1,12 @@
+{
+  "type": "improvement",
+  "scope": "dataset",
+  "audience": "internal",
+  "summary": "A hand-entered dataset that is still empty can now be told to keep its figures at a finer period than the one it is shown at.",
+  "details": [
+    "The save of a dataset whose file holds nothing accepts the period its data should be kept at, so a triangle displayed a year at a time can hold monthly figures underneath, the way ResQ's own editing dialog allows.",
+    "The period asked for has to divide the one on screen, and once the dataset holds figures it can no longer be moved; both refusals name the reason.",
+    "A vector has no such setting, as in ResQ, and ignores it.",
+    "The screen control that offers this arrives with the next step of the work; nothing changes for anyone yet."
+  ]
+}

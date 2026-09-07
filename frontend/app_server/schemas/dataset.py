@@ -163,6 +163,9 @@ class DatasetSidecarSaveRequest(BaseModel):
     data_format: str = ""
     origin_length: int = Field(..., ge=1)
     development_length: int = Field(..., ge=1)
+    # The months per period the CSV is written at, when the caller asks for a
+    # store finer than the display. Omitted, the store follows the display.
+    stored_development_length: Optional[int] = Field(None, ge=1)
     cumulative: bool = True
     transposed: bool = False
     calendar: bool = False

@@ -2022,6 +2022,14 @@ def _dataset_cache_dir(project_name: str, reserving_class: str) -> str:
         raise HTTPException(404, str(err))
 
 
+def _frame_holds_values(frame: pd.DataFrame) -> bool:
+    """Whether *frame* holds a number that is neither blank nor zero."""
+
+    if frame.empty:
+        return False
+    return bool(np.any(np.nan_to_num(frame.to_numpy(dtype="float64"), nan=0.0) != 0.0))
+
+
 def _stored_csv_holds_values(csv_path: str) -> bool:
     """Whether the CSV at *csv_path* holds a value that is not blank or zero.
 
@@ -2032,10 +2040,7 @@ def _stored_csv_holds_values(csv_path: str) -> bool:
 
     if not csv_path or not os.path.exists(csv_path):
         return False
-    frame = load_triangle_values(csv_path)
-    if frame.empty:
-        return False
-    return bool(np.any(np.nan_to_num(frame.to_numpy(dtype="float64"), nan=0.0) != 0.0))
+    return _frame_holds_values(load_triangle_values(csv_path))
 
 
 def _save_dataset_sidecar_impl(
@@ -2049,6 +2054,7 @@ def _save_dataset_sidecar_impl(
     data_format: str = "",
     origin_length: int,
     development_length: int,
+    stored_development_length: int | None = None,
     cumulative: bool = True,
     transposed: bool = False,
     calendar: bool = False,
@@ -2118,6 +2124,20 @@ def _save_dataset_sidecar_impl(
     csv_file_value = str(csv_file or existing.get("csv_file") or "")
     stored_origin_months = int(origin_length)
     stored_development_months = int(development_length)
+    if stored_development_length is not None and not is_vector:
+        # ResQ's `Stored at` spinner: a triangle that holds nothing may be
+        # stored finer than it is shown, at any factor of the display length.
+        # The origin store has no control of its own and follows the display
+        # one, and a vector has neither, so both ignore the field.
+        requested_stored_development = int(stored_development_length)
+        if (
+            requested_stored_development <= 0
+            or int(development_length) % requested_stored_development != 0
+        ):
+            raise HTTPException(
+                400, "The stored development length must be a factor of the development length."
+            )
+        stored_development_months = requested_stored_development
     superseded_csv_path = ""
     relabel_empty_input = False
     if source_kind_value.strip().casefold() == "input" and existing and not csv_file:
@@ -2129,11 +2149,15 @@ def _save_dataset_sidecar_impl(
         existing_origin, existing_development = stored_lengths(existing)
         if is_vector:
             existing_shape = (existing_origin,)
-            requested_shape = (int(origin_length),)
+            requested_shape = (stored_origin_months,)
+            display_shape = (int(origin_length),)
         else:
             existing_shape = (existing_origin, existing_development)
-            requested_shape = (int(origin_length), int(development_length))
-        if all(months > 0 for months in existing_shape) and existing_shape != requested_shape:
+            requested_shape = (stored_origin_months, stored_development_months)
+            display_shape = (int(origin_length), int(development_length))
+        if all(months > 0 for months in existing_shape) and (
+            existing_shape != requested_shape or display_shape != existing_shape
+        ):
             existing_csv_file = os.path.basename(str(existing.get("csv_file") or "").strip())
             existing_csv_path = (
                 os.path.join(_dataset_cache_dir(p, rc), existing_csv_file)
@@ -2141,7 +2165,15 @@ def _save_dataset_sidecar_impl(
                 else ""
             )
             if _stored_csv_holds_values(existing_csv_path):
-                if values is not None:
+                if not is_vector and stored_development_length is not None and (
+                    stored_development_months != existing_development
+                ):
+                    raise HTTPException(
+                        400,
+                        "The stored development length cannot be changed while the dataset "
+                        "holds values.",
+                    )
+                if values is not None and display_shape != existing_shape:
                     shape_text = (
                         f"period length {existing_origin}"
                         if is_vector
@@ -2153,15 +2185,18 @@ def _save_dataset_sidecar_impl(
                         "only at the stored period; set the lengths back to edit.",
                     )
                 stored_origin_months, stored_development_months = existing_origin, existing_development
-            else:
+            elif existing_shape != requested_shape:
                 relabel_empty_input = True
                 superseded_csv_path = existing_csv_path
     if values is not None or relabel_empty_input:
+        # The file is the dataset's data, so it is named for the shape it is
+        # written at -- the stored one, which is the display shape unless this
+        # save asked for a finer store.
         csv_stem = build_dataset_cache_file_name(
             ds,
             data_format_value,
-            origin_length,
-            development_length,
+            stored_origin_months,
+            stored_development_months,
             cumulative,
             calendar,
         )
@@ -2259,11 +2294,26 @@ def _save_dataset_sidecar_impl(
         force_status=force_status,
     )
     if values is not None or relabel_empty_input:
-        if values is not None:
-            df = _dataset_values_to_frame(values, mask)
+        stored_shape_is_display = (stored_origin_months, stored_development_months) == (
+            int(origin_length),
+            int(development_length),
+        )
+        values_frame = _dataset_values_to_frame(values, mask) if values is not None else None
+        if values_frame is not None and stored_shape_is_display:
+            df = values_frame
         else:
+            # Values arrive at the display shape, which a store finer than the
+            # display cannot hold as it stands. Only a dataset that is empty
+            # can be stored finer, so those values carry nothing and the file
+            # is written as an empty grid at the stored shape instead.
+            if values_frame is not None and _frame_holds_values(values_frame):
+                raise HTTPException(
+                    422,
+                    f"Dataset '{ds}' is stored at development length {stored_development_months}. "
+                    "Values can be entered only at the stored period; set the lengths back to edit.",
+                )
             origin_count, development_count, empty_mask = _empty_dataset_geometry_from_general_settings(
-                p, int(origin_length), int(development_length)
+                p, stored_origin_months, stored_development_months
             )
             df = _empty_dataset_values(data_format_value, origin_count, development_count, empty_mask)
         try:

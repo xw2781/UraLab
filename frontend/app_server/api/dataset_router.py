@@ -245,6 +245,7 @@ def _dataset_sidecar_save_call(req: DatasetSidecarSaveRequest) -> Dict[str, Any]
             "data_format": req.data_format,
             "origin_length": req.origin_length,
             "development_length": req.development_length,
+            "stored_development_length": req.stored_development_length,
             "cumulative": req.cumulative,
             "transposed": req.transposed,
             "calendar": req.calendar,

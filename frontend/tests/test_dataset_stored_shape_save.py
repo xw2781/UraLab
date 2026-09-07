@@ -36,6 +36,9 @@ from dependent_propagation_workspace_stub import IsolatedPropagationWorkspace
 
 MONTHLY_CSV = "Dataset@1@1@cum@dev.csv"
 ANNUAL_CSV = "Dataset@12@12@cum@dev.csv"
+ANNUAL_OVER_MONTHLY_CSV = "Dataset@12@1@cum@dev.csv"
+MONTHLY_VECTOR_CSV = "Dataset@1.csv"
+ANNUAL_VECTOR_CSV = "Dataset@12.csv"
 
 
 class ManualDatasetStoredShapeSaveTests(unittest.TestCase):
@@ -69,7 +72,15 @@ class ManualDatasetStoredShapeSaveTests(unittest.TestCase):
         pd.DataFrame(values).to_csv(path, header=False, index=False)
         return path
 
-    def _save(self, *, origin_length: int, development_length: int, values=None):
+    def _save(
+        self,
+        *,
+        origin_length: int,
+        development_length: int,
+        values=None,
+        stored_development_length: int | None = None,
+        data_format: str = "Triangle",
+    ):
         written: dict = {}
 
         def capture_write(path, payload):
@@ -105,9 +116,10 @@ class ManualDatasetStoredShapeSaveTests(unittest.TestCase):
                 "Dataset",
                 dataset_type="Input Type",
                 source_kind="input",
-                data_format="Triangle",
+                data_format=data_format,
                 origin_length=origin_length,
                 development_length=development_length,
+                stored_development_length=stored_development_length,
                 values=values,
             )
 
@@ -189,6 +201,89 @@ class ManualDatasetStoredShapeSaveTests(unittest.TestCase):
         rebuilt = dataset_service.load_triangle_values(os.path.join(self.data_dir, ANNUAL_CSV))
         self.assertEqual(rebuilt.shape, (2, 2))
         self.assertTrue(bool(pd.isna(rebuilt.iat[1, 1])))
+
+    def test_empty_triangle_can_be_stored_finer_than_it_is_shown(self) -> None:
+        monthly_path = self._write_stored_csv(MONTHLY_CSV, [[0.0, 0.0], [0.0, np.nan]])
+
+        with patch.object(
+            dataset_service,
+            "_empty_dataset_geometry_from_general_settings",
+            return_value=(2, 3, np.array([[True, True, True], [True, True, False]])),
+        ) as geometry:
+            result, payload = self._save(
+                origin_length=12,
+                development_length=12,
+                stored_development_length=1,
+            )
+
+        self.assertEqual(payload["origin_length"], 12)
+        self.assertEqual(payload["development_length"], 12)
+        self.assertEqual(payload["stored_origin_length"], 12)
+        self.assertEqual(payload["stored_development_length"], 1)
+        self.assertEqual(payload["csv_file"], ANNUAL_OVER_MONTHLY_CSV)
+        self.assertEqual(result["stored_origin_length"], 12)
+        self.assertEqual(result["stored_development_length"], 1)
+        # The empty file that replaces the old one is built at the stored
+        # shape, not at the coarser shape the dataset is shown at.
+        self.assertEqual(geometry.call_args.args[1:], (12, 1))
+        self.assertTrue(os.path.exists(os.path.join(self.data_dir, ANNUAL_OVER_MONTHLY_CSV)))
+        self.assertFalse(os.path.exists(monthly_path))
+
+    def test_stored_development_length_must_divide_the_display_length(self) -> None:
+        self._write_stored_csv(MONTHLY_CSV, [[0.0, 0.0], [0.0, np.nan]])
+
+        with self.assertRaises(HTTPException) as raised:
+            self._save(origin_length=12, development_length=12, stored_development_length=5)
+
+        self.assertEqual(raised.exception.status_code, 400)
+        self.assertEqual(
+            raised.exception.detail,
+            "The stored development length must be a factor of the development length.",
+        )
+
+    def test_stored_development_length_cannot_move_once_values_are_stored(self) -> None:
+        self._write_stored_csv(MONTHLY_CSV, [[100.0, 110.0], [120.0, np.nan]])
+
+        with self.assertRaises(HTTPException) as raised:
+            self._save(origin_length=12, development_length=12, stored_development_length=3)
+
+        self.assertEqual(raised.exception.status_code, 400)
+        self.assertEqual(
+            raised.exception.detail,
+            "The stored development length cannot be changed while the dataset holds values.",
+        )
+
+    def test_a_vector_ignores_the_stored_development_length(self) -> None:
+        self.existing = {
+            "dataset_name": "Dataset",
+            "dataset_type": "Input Type",
+            "project_name": "Project",
+            "reserving_class": "Class",
+            "source_kind": "input",
+            "data_format": "Vector",
+            "period_length": 1,
+            "stored_period_length": 1,
+            "csv_file": MONTHLY_VECTOR_CSV,
+        }
+        self._write_stored_csv(MONTHLY_VECTOR_CSV, [[0.0], [0.0]])
+
+        with patch.object(
+            dataset_service,
+            "_empty_dataset_geometry_from_general_settings",
+            return_value=(2, 1, np.array([[True], [True]])),
+        ):
+            result, payload = self._save(
+                origin_length=12,
+                development_length=12,
+                stored_development_length=1,
+                data_format="Vector",
+            )
+
+        self.assertEqual(payload["stored_period_length"], 12)
+        self.assertNotIn("stored_development_length", payload)
+        self.assertEqual(payload["csv_file"], ANNUAL_VECTOR_CSV)
+        self.assertEqual(result["stored_period_length"], 12)
+        self.assertEqual(result["stored_development_length"], 12)
 
 
 if __name__ == "__main__":

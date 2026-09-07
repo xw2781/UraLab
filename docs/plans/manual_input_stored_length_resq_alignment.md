@@ -1,6 +1,6 @@
 # Manual Input Triangles: Matching ResQ's Stored-Length Editing
 
-Status: Broken into 7 session-sized steps on 2026-09-06; implementation not started (0 of 7 done). The ResQ rules are established against the COM API and both design decisions are taken, so every step can run unattended.
+Status: Broken into 7 session-sized steps on 2026-09-06; step 1 landed the same day (1 of 7 done). The ResQ rules are established against the COM API and both design decisions are taken, so every step can run unattended.
 Last updated: 2026-09-06.
 
 ## Progress
@@ -9,7 +9,7 @@ Plain-language tracking. The agent that finishes a step ticks its box, fills in 
 
 | # | Step | Done | Date | What changed for the user |
 | :--- | :--- | :--- | :--- | :--- |
-| 1 | An empty triangle can be told to store its development periods finer than it shows | [ ] | | |
+| 1 | An empty triangle can be told to store its development periods finer than it shows | [x] | 2026-09-06 | Saving a dataset that is still empty can now keep its figures monthly underneath a yearly view; the control to ask for that comes with the next step. |
 | 2 | The Data tab shows "Stored at" beside each length, and an empty triangle's development store can be lowered there | [ ] | | |
 | 3 | Values saved at a coarser development view land in the stored cells at their ages | [ ] | | |
 | 4 | Typing, paste and links work when only the development view is coarser than the store | [ ] | | |
@@ -17,7 +17,7 @@ Plain-language tracking. The agent that finishes a step ticks its box, fills in 
 | 6 | A yearly view of a monthly triangle is pinned to ResQ's own numbers | [ ] | | |
 | 7 | The server components carry the change | [ ] | | |
 
-Overall: 0 of 7 steps done.
+Overall: 1 of 7 steps done.
 
 ## How agents work this plan
 
@@ -126,15 +126,15 @@ Steps 1→2 and 3→4 are ordered pairs. Steps 1 and 3 both edit the dataset sav
 
 **Goal.** The sidecar save accepts a requested stored development length for a manual triangle that holds no value, so the store can be any factor of the display (ResQ rules 3–4). Nothing else about the save changes.
 
-**Read first.** ResQ rules 3, 4 and 6 and Decision 4 above; [dataset_service.py:2025-2039](../../frontend/app_server/services/dataset_service.py#L2025-L2039) (what "holds a value" means), [dataset_service.py:2117-2215](../../frontend/app_server/services/dataset_service.py#L2117-L2215) (the empty-dataset relabel path that moves the stored pair today) and [dataset_service.py:2355-2375](../../frontend/app_server/services/dataset_service.py#L2355-L2375) (the pair reported back); the save request model and route at [dataset_router.py:282](../../frontend/app_server/api/dataset_router.py#L282); [sidecar_core_contract.py:30-45](../../python-api/src/arcrho_api/sidecar_core_contract.py#L30-L45) and [sidecar_core_contract.py:108-170](../../python-api/src/arcrho_api/sidecar_core_contract.py#L108-L170) (the stored fields already exist; no new field is added); [test_dataset_stored_shape_save.py](../../frontend/tests/test_dataset_stored_shape_save.py). Memory notes: `python-test-runner`, `propagation-hold-and-test-isolation` (a service test that saves must use the propagation workspace stub). Skill: `arcrho-json-contract`.
+**Read first.** ResQ rules 3, 4 and 6 and Decision 4 above; [dataset_service.py:2025-2039](../../frontend/app_server/services/dataset_service.py#L2025-L2039) (what "holds a value" means), [dataset_service.py:2117-2215](../../frontend/app_server/services/dataset_service.py#L2117-L2215) (the empty-dataset relabel path that moves the stored pair today) and [dataset_service.py:2355-2375](../../frontend/app_server/services/dataset_service.py#L2355-L2375) (the pair reported back); the save request model and route at [dataset_router.py:282](../../frontend/app_server/api/dataset_router.py#L282); [sidecar_core_contract.py:30-45](../../python-api/src/arcrho_api/sidecar_core_contract.py#L30-L45) and [sidecar_core_contract.py:108-170](../../python-api/src/arcrho_api/sidecar_core_contract.py#L108-L170) (the stored fields already exist; no new field is added); [test_dataset_stored_shape_save.py](../../frontend/tests/test_dataset_stored_shape_save.py); the request model itself in [dataset.py:156-190](../../frontend/app_server/schemas/dataset.py#L156-L190), the CSV name builder [helpers.py:112-131](../../frontend/app_server/helpers.py#L112-L131) (the file is named for the shape it is written at), and the hand-entered save paragraph of [dataset.md](../../frontend/docs/app_server/domains/dataset.md) that the change updates. Memory notes: `python-test-runner`, `propagation-hold-and-test-isolation` (a service test that saves must use the propagation workspace stub). Skill: `arcrho-json-contract`.
 
 **Do.**
 
-- [ ] Add an optional `stored_development_length` to the save request model and to `_save_dataset_sidecar_impl`; a request without it behaves exactly as today.
-- [ ] While the dataset's CSV holds no non-zero value, the stored pair becomes (`origin_length`, `stored_development_length`); a value that does not divide `development_length` is a 400 reading `The stored development length must be a factor of the development length.`
-- [ ] Once the CSV holds a value, a requested stored length that differs from the recorded one is a 400 reading `The stored development length cannot be changed while the dataset holds values.`
-- [ ] An empty CSV written by that save is at the stored shape.
-- [ ] A vector ignores the field (rule 6).
+- [x] Add an optional `stored_development_length` to the save request model and to `_save_dataset_sidecar_impl`; a request without it behaves exactly as today.
+- [x] While the dataset's CSV holds no non-zero value, the stored pair becomes (`origin_length`, `stored_development_length`); a value that does not divide `development_length` is a 400 reading `The stored development length must be a factor of the development length.`
+- [x] Once the CSV holds a value, a requested stored length that differs from the recorded one is a 400 reading `The stored development length cannot be changed while the dataset holds values.`
+- [x] An empty CSV written by that save is at the stored shape.
+- [x] A vector ignores the field (rule 6).
 
 **Tests.** [test_dataset_stored_shape_save.py](../../frontend/tests/test_dataset_stored_shape_save.py) gains: an empty triangle saved at display 12/12 with stored development 1 records and reports back (12, 1); a non-factor is refused; a triangle holding a value refuses a change; a vector ignores the field.
 
