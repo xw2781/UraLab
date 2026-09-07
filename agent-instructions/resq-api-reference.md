@@ -18,6 +18,8 @@ Everything is consolidated under `E:\XWSpace\ResQ API Doc`, which is on the Serv
 
 Two of these are also mirrored into the repository so migration code can be read offline: `python-api/migration/references/ResQToolBox2.py` and `python-api/migration/references/ResQ API Example.ipynb`.
 
+[docs/reference/resq_stored_and_display_lengths.md](../docs/reference/resq_stored_and_display_lengths.md) is the repository's own reference for one corner the manual covers poorly: what ResQ does when a triangle or vector is created, reshaped, typed into, pasted into and read back at a period other than the one it is stored at. Every rule there was established against the live COM API and can be re-run with `tools/resq_stored_length_probe.py`. Read it before changing anything that decides a dataset's stored or displayed lengths.
+
 Production reserve-review notebooks live under `E:\ResQ\Automations\Reserve Review\<quarter>` — for example the 2026Q1 `COL`, `HOL`, and `CMPxCAT` notebooks. They are the best evidence of which calls users actually depend on, and of the naming users already recognize.
 
 ## 2. How To Treat It

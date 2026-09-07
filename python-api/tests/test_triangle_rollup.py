@@ -285,6 +285,77 @@ class ResqProbeGridTests(unittest.TestCase):
         )
 
 
+    # ResQ's own reading of the 10x10 annual triangle of the GUI walk-through
+    # after it was pasted into a store of 12/1: the same figures at the same
+    # ages at every display length ResQ allows (probe cases B2 and D1).
+    resq_annual_10x10 = [
+        [1357, 1385, 1412, 1440, 1469, 1499, 1529, 1559, 1590, 1622],
+        [1493, 1523, 1553, 1585, 1616, 1649, 1682, 1715, 1749],
+        [1642, 1675, 1709, 1743, 1778, 1813, 1850, 1887],
+        [1807, 1843, 1880, 1917, 1956, 1995, 2035],
+        [1987, 2027, 2068, 2109, 2151, 2194],
+        [2186, 2230, 2274, 2320, 2366],
+        [2405, 2453, 2502, 2552],
+        [2645, 2698, 2752],
+        [2910, 2968],
+        [3201],
+    ]
+    # Column count of the widest row, then the width of each row, exactly as
+    # ResQ reported them for displays 1, 2, 3, 4, 6 and 12 (probe case D1).
+    resq_display_shapes = {
+        1: (113, [113, 101, 89, 77, 65, 53, 41, 29, 17, 5]),
+        2: (57, [57, 51, 45, 39, 33, 27, 21, 15, 9, 3]),
+        3: (38, [38, 34, 30, 26, 22, 18, 14, 10, 6, 2]),
+        4: (29, [29, 26, 23, 20, 17, 14, 11, 8, 5, 2]),
+        6: (19, [19, 17, 15, 13, 11, 9, 7, 5, 3, 1]),
+        12: (10, [10, 9, 8, 7, 6, 5, 4, 3, 2, 1]),
+    }
+
+    def test_every_display_length_reads_the_store_the_way_resq_does(self) -> None:
+        """Moving the Development Length after the paste keeps the figures put.
+
+        The scattered store holds each annual figure at its own column age and
+        cumulative 0 between, so every display ResQ allows shows the same ten
+        numbers a row, at the ages ResQ labels them with.
+        """
+        store = []
+        for row, values in enumerate(self.resq_annual_10x10):
+            cells = [0.0] * (self.valuation_months - 12 * row)
+            for column, value in enumerate(values):
+                cells[self.annual_ages[column] - 1] = float(value)
+            store.append(cells)
+
+        for display, (columns, widths) in self.resq_display_shapes.items():
+            with self.subTest(development_length=display):
+                rolled = rollup_triangle(
+                    store,
+                    source_origin_length=12,
+                    source_development_length=1,
+                    target_origin_length=12,
+                    target_development_length=display,
+                    valuation_months=self.valuation_months,
+                )
+                # ResQ ends every display on the newest cell and steps back by
+                # the display length, so column j is valued at this age.
+                ages = [
+                    self.valuation_months - (columns - 1 - j) * display
+                    for j in range(columns)
+                ]
+                expected = []
+                for row, values in enumerate(self.resq_annual_10x10):
+                    entered = dict(zip(self.annual_ages, (float(v) for v in values)))
+                    expected.append([
+                        entered.get(ages[j], 0.0) if j < widths[row] else None
+                        for j in range(columns)
+                    ])
+                self.assertEqual([len(row) for row in rolled], [columns] * 10)
+                self.assertEqual(
+                    [sum(1 for value in row if value is not None) for row in rolled],
+                    widths,
+                )
+                self.assertEqual(rolled, expected)
+
+
 class TriangleScatterTests(unittest.TestCase):
     """Values entered at a coarser development view land in the stored cells.
 

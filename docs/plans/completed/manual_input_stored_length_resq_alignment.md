@@ -1,7 +1,14 @@
 # Manual Input Triangles: Matching ResQ's Stored-Length Editing
 
-Status: Implemented. Broken into 7 session-sized steps on 2026-09-06; steps 1 to 6 landed the same day and the deploy landed on 2026-09-07 (7 of 7 done). Kept as the record of the ResQ rules established against its COM API and of the two design decisions behind the shipped behaviour.
+Status: Implemented. Broken into 7 session-sized steps on 2026-09-06; steps 1 to 6 landed the same day and the deploy landed on 2026-09-07 (7 of 7 done). Kept as the record of the two design decisions behind the shipped behaviour.
 Last updated: 2026-09-07.
+
+The ResQ rules below have since been re-probed and widened into
+[docs/reference/resq_stored_and_display_lengths.md](../../reference/resq_stored_and_display_lengths.md),
+which is now the reference to read and keep current: it covers creating,
+reshaping, writing, reading and exporting, ties every rule to a case of
+`tools/resq_stored_length_probe.py`, and corrects one rule stated here — a
+display put moves the store only when the value actually **changes**.
 
 ## Progress
 
