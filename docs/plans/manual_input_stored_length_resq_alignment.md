@@ -1,6 +1,6 @@
 # Manual Input Triangles: Matching ResQ's Stored-Length Editing
 
-Status: Broken into 7 session-sized steps on 2026-09-06; steps 1 to 5 landed the same day (5 of 7 done). The ResQ rules are established against the COM API and both design decisions are taken, so every step can run unattended.
+Status: Broken into 7 session-sized steps on 2026-09-06; steps 1 to 6 landed the same day (6 of 7 done), leaving only the deploy. The ResQ rules are established against the COM API and both design decisions are taken, so every step can run unattended.
 Last updated: 2026-09-06.
 
 ## Progress
@@ -14,10 +14,10 @@ Plain-language tracking. The agent that finishes a step ticks its box, fills in 
 | 3 | Values saved at a coarser development view land in the stored cells at their ages | [x] | 2026-09-06 | Figures saved while a yearly view of a monthly dataset is on screen now land in the monthly cells underneath, at the dates those columns stand for, and the rest of the triangle is cleared, exactly as ResQ does it. |
 | 4 | Typing, paste and links work when only the development view is coarser than the store | [x] | 2026-09-06 | A hand-entered dataset shown a year at a time over finer figures can now be typed into, pasted into and linked; only a view that groups the rows is still read-only, and the status line says a save will write each figure at its own column date and clear the periods between. |
 | 5 | The export macro writes a hand-entered triangle to ResQ at its stored shape | [x] | 2026-09-06 | Sending a hand-entered dataset back to ResQ now writes it at the shape ArcRho keeps it in, so a yearly view over monthly figures arrives with the same numbers in the same cells; a ResQ triangle kept by a different origin period is reported as skipped rather than written wrongly. |
-| 6 | A yearly view of a monthly triangle is pinned to ResQ's own numbers | [ ] | | |
+| 6 | A yearly view of a monthly triangle is pinned to ResQ's own numbers | [x] | 2026-09-06 | The yearly figures ArcRho shows over a monthly dataset are now checked against the numbers ResQ itself produced, so that reading cannot quietly drift. |
 | 7 | The server components carry the change | [ ] | | |
 
-Overall: 5 of 7 steps done.
+Overall: 6 of 7 steps done.
 
 ## How agents work this plan
 
@@ -219,8 +219,8 @@ Steps 1→2 and 3→4 are ordered pairs. Steps 1 and 3 both edit the dataset sav
 
 **Do.**
 
-- [ ] Add a test that builds the 120×113 fill `cum(origin month k, age d) = 1000k + d` in code (no fixture file), rolls it up to 12/12 with 113 valuation months, and asserts the 55-cell grid from rule 8.
-- [ ] Add the development-axis case from rule 2: a 12/1 store filled with `100000·row + age` reads `100005, 100017, …` at 12/12.
+- [x] Add a test that builds the 120×113 fill `cum(origin month k, age d) = 1000k + d` in code (no fixture file), rolls it up to 12/12 with 113 valuation months, and asserts the 55-cell grid from rule 8.
+- [x] Add the development-axis case from rule 2: a 12/1 store filled with `100000·row + age` reads `100005, 100017, …` at 12/12.
 
 **Tests.** [test_triangle_rollup.py](../../python-api/tests/test_triangle_rollup.py) gains the two cases.
 

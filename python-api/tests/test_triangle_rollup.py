@@ -203,6 +203,88 @@ class TriangleRollupTests(unittest.TestCase):
             )
 
 
+class ResqProbeGridTests(unittest.TestCase):
+    """The grids ResQ itself returned, from the probe in
+    ``docs/plans/manual_input_stored_length_resq_alignment.md`` (rules 2 and 8).
+
+    ``NJ_Annual_Prod_202605_Fake``: annual origins from 2017-01 valued on
+    2026-05-31, so the project is 113 months long and an annual view is valued
+    at 5, 17, 29, ... 113 months of age.
+    """
+
+    valuation_months = 113
+    origin_months = 120
+    annual_ages = [5, 17, 29, 41, 53, 65, 77, 89, 101, 113]
+
+    # The annual view ResQ returned for a monthly-origin, monthly-development
+    # store filled with cum(origin month k, age d) = 1000k + d.
+    resq_annual_grid = [
+        [15015, 78138, 78282, 78426, 78570, 78714, 78858, 79002, 79146, 79290],
+        [75015, 222138, 222282, 222426, 222570, 222714, 222858, 223002, 223146],
+        [135015, 366138, 366282, 366426, 366570, 366714, 366858, 367002],
+        [195015, 510138, 510282, 510426, 510570, 510714, 510858],
+        [255015, 654138, 654282, 654426, 654570, 654714],
+        [315015, 798138, 798282, 798426, 798570],
+        [375015, 942138, 942282, 942426],
+        [435015, 1086138, 1086282],
+        [495015, 1230138],
+        [555015],
+    ]
+
+    def _padded(self, grid: list) -> list:
+        columns = len(self.annual_ages)
+        return [
+            [float(value) for value in row] + [None] * (columns - len(row))
+            for row in grid
+        ]
+
+    def test_an_annual_view_of_a_monthly_origin_store_matches_resq(self) -> None:
+        # Origin month k (1-based) starts k - 1 months after the anchor, so it
+        # holds a cell at every age d while k - 1 + d is within the project.
+        store = [
+            [1000.0 * k + d for d in range(1, self.valuation_months - k + 2)]
+            for k in range(1, self.origin_months + 1)
+        ]
+
+        rolled = rollup_triangle(
+            store,
+            source_origin_length=1,
+            source_development_length=1,
+            target_origin_length=12,
+            target_development_length=12,
+            valuation_months=self.valuation_months,
+        )
+
+        self.assertEqual(rolled, self._padded(self.resq_annual_grid))
+
+    def test_an_annual_view_of_a_monthly_development_store_reads_one_cell(self) -> None:
+        # Annual origins stored monthly, cum(row, age) = 100000 x row + age:
+        # each annual column is the stored cell at its own age and nothing else.
+        store = [
+            [100000.0 * (row + 1) + age
+             for age in range(1, self.valuation_months - 12 * row + 1)]
+            for row in range(len(self.annual_ages))
+        ]
+
+        rolled = rollup_triangle(
+            store,
+            source_origin_length=12,
+            source_development_length=1,
+            target_origin_length=12,
+            target_development_length=12,
+            valuation_months=self.valuation_months,
+        )
+
+        self.assertEqual(
+            rolled,
+            self._padded([
+                [100000 * (row + 1) + age
+                 for age in self.annual_ages[:len(self.annual_ages) - row]]
+                for row in range(len(self.annual_ages))
+            ]),
+        )
+
+
 class TriangleScatterTests(unittest.TestCase):
     """Values entered at a coarser development view land in the stored cells.
 
