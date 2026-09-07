@@ -49,3 +49,7 @@ py -3.10 python-api/migration/validation/dfm_ratio_side_by_side_review.py
 ## Reconcile Result Selections
 py -3.10 python-api/migration/validation/rs_dataset_side_by_side_review.py
 
+## Reconcile plain triangles and vectors (no method behind them)
+py -3.10 python-api/migration/validation/dataset_side_by_side_review.py
+py -3.10 python-api/migration/validation/dataset_side_by_side_review.py --source-kind all --rc "Legacy\HOL"
+
