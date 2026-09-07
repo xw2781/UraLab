@@ -5,7 +5,7 @@ metadata:
   node_type: memory
   type: project
   originSessionId: be39cc59-f1e3-4e66-8f1b-060ea472932d
-  modified: 2026-08-27T20:25:42.698Z
+  modified: 2026-09-07T13:27:17.356Z
 ---
 
 On this Client PC the Bash tool's `<<'EOF'` heredocs are **not** treated as literal text even with a quoted delimiter (observed 2026-08-17):
@@ -18,3 +18,5 @@ On this Client PC the Bash tool's `<<'EOF'` heredocs are **not** treated as lite
 **How to apply:** for anything longer than a few plain lines — especially JS/CSS/Markdown edits or scripts with Windows paths — write the script or content with the Write tool into the scratchpad and run it by path (`py -3.10 <scratchpad>/script.py`), or use the Edit tool directly. Related: [[python-test-runner]], [[frontend-node-test-suite]].
 
 A rewrite script must also keep line endings: the working copies here are CRLF (`git ls-files --eol` shows `i/lf w/crlf`), so `Path.read_text()`/`write_text()` silently turns a whole file to LF (observed 2026-08-27). Open with `newline=""`, convert the search/replace strings to the file's own EOL, and write with `newline=""` — or restore CRLF afterwards with a bytes replace.
+
+`sed -i` in this Bash tool does the same (observed 2026-09-07 on the Server PC while bumping `?v=` stamps): every file it rewrites comes out LF-only, and `git stash` then warns "LF will be replaced by CRLF" for each one. A `git stash` + `git stash pop` cycle re-checks the files out and restores CRLF, and `git diff` never shows the ending change because the index is LF anyway, but a deploy patch or a test that reads bytes sees the LF file in between. Prefer the Edit tool for one-line pin bumps, or run `git ls-files --eol` on the touched files afterwards and fix any `w/lf`.
