@@ -41,6 +41,10 @@ const inputsControllerSource = await readFile(
   new URL("../ui/shared/tabs/data/data_tab_inputs_controller.js", import.meta.url),
   "utf8",
 );
+const hostControllerSource = await readFile(
+  new URL("../ui/shared/tabs/data/data_tab_host_controller.js", import.meta.url),
+  "utf8",
+);
 const dfmPageSource = await readFile(
   new URL("../ui/method_pages/dfm/dfm.html", import.meta.url),
   "utf8",
@@ -545,13 +549,23 @@ test("the save states the period the dataset's file is written at", () => {
   assert.match(persistenceControllerSource, /\|\| storedDevelopmentLengthIsDirty\(\)/u);
 });
 
-test("a coarser view of a dataset is read-only and says why", () => {
-  // A display coarser than the stored period is a roll-up, so it joins the
-  // reasons the grid, the Links tab and the patch save refuse an edit.
-  assert.match(preferencesControllerSource, /\|\| datasetDisplayIsCoarserThanStored\(\);/u);
+// ResQ refuses a write at a coarser origin display and accepts one at a coarser
+// development display, so ArcRho tests the two axes apart: the origin one locks
+// the grid, the development one only warns what a save there will do.
+
+test("only a coarser origin view is read-only, and it names that axis", () => {
+  // The read-only chain reads the origin test alone; the combined test that
+  // locked both axes is gone.
+  assert.match(preferencesControllerSource, /\|\| datasetOriginDisplayIsCoarserThanStored\(\);/u);
+  assert.match(preferencesControllerSource, /&& datasetOriginDisplayIsCoarserThanStored\(\);/u);
+  assert.doesNotMatch(preferencesControllerSource, /datasetDisplayIsCoarserThanStored/u);
   assert.match(
     persistenceControllerSource,
-    /Values can be entered only at the stored period \(Origin \$\{stored\.origin_length\}, Development \$\{stored\.development_length\}\)\. Set the lengths back to edit\./u,
+    /function datasetOriginDisplayIsCoarserThanStored\(\) \{\s*if \(storedLengthIsPending\(\)\) return false;/u,
+  );
+  assert.match(
+    persistenceControllerSource,
+    /Values can be entered only at the stored origin period \(Origin \$\{stored\.origin_length\}\)\. Set the origin length back to edit\./u,
   );
   // One place decides the wording, so every refusal names the rule that
   // stopped it rather than blaming a generated dataset.
@@ -561,6 +575,36 @@ test("a coarser view of a dataset is read-only and says why", () => {
   assert.doesNotMatch(runControllerSource, /setStatus\("Generated datasets are read-only\."\)/u);
   // The Links tab already inherits the same rule.
   assert.match(persistenceControllerSource, /isDatasetReadOnly\(\) \|\| isDfmDataTabHost\(\)/u);
+});
+
+test("a coarser development view is editable and says what a save there does", () => {
+  // The development test is its own function and nothing in the read-only
+  // chain reads it, so typing, paste and links stay live at that view.
+  assert.match(
+    persistenceControllerSource,
+    /function datasetDevelopmentDisplayIsCoarserThanStored\(\) \{\s*if \(storedLengthIsPending\(\) \|\| currentDatasetIsVector\(\)\) return false;/u,
+  );
+  assert.doesNotMatch(preferencesControllerSource, /datasetDevelopmentDisplayIsCoarserThanStored/u);
+  // A save there rewrites the whole stored triangle, so one sentence stays on
+  // the status line for as long as the view is up rather than waiting for a
+  // refusal that never comes.
+  assert.match(
+    persistenceControllerSource,
+    /Saving here writes each value into the stored period \(Development \$\{stored\.development_length\}\) at its own column age and clears the stored periods between\./u,
+  );
+  assert.match(runControllerSource, /datasetCoarseDevelopmentNote = \(\) => "",/u);
+  assert.match(runControllerSource, /setStatus\(datasetCoarseDevelopmentNote\(\) \|\| meta \|\| "Ready"\);/u);
+  assert.match(hostControllerSource, /datasetCoarseDevelopmentNote,/u);
+});
+
+test("a vector keeps its one Period wording and has no development view to relax", () => {
+  assert.match(
+    persistenceControllerSource,
+    /Values can be entered only at the stored period \(Period \$\{stored\.origin_length\}\)\. Set the length back to edit\./u,
+  );
+  // A vector has no development dimension, so the development test is false
+  // for one and the note it feeds never appears.
+  assert.match(persistenceControllerSource, /storedLengthIsPending\(\) \|\| currentDatasetIsVector\(\)/u);
 });
 
 test("a length change is a display setting the save keeps, not a value edit", () => {

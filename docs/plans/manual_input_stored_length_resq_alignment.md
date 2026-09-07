@@ -1,6 +1,6 @@
 # Manual Input Triangles: Matching ResQ's Stored-Length Editing
 
-Status: Broken into 7 session-sized steps on 2026-09-06; steps 1 to 3 landed the same day (3 of 7 done). The ResQ rules are established against the COM API and both design decisions are taken, so every step can run unattended.
+Status: Broken into 7 session-sized steps on 2026-09-06; steps 1 to 4 landed the same day (4 of 7 done). The ResQ rules are established against the COM API and both design decisions are taken, so every step can run unattended.
 Last updated: 2026-09-06.
 
 ## Progress
@@ -12,12 +12,12 @@ Plain-language tracking. The agent that finishes a step ticks its box, fills in 
 | 1 | An empty triangle can be told to store its development periods finer than it shows | [x] | 2026-09-06 | Saving a dataset that is still empty can now keep its figures monthly underneath a yearly view; the control to ask for that comes with the next step. |
 | 2 | The Data tab shows "Stored at" beside each length, and an empty triangle's development store can be lowered there | [x] | 2026-09-06 | Each length in the Data tab now has a "Stored at" value beside it, and while a hand-entered dataset is still empty you can lower the development one so a yearly view keeps monthly figures underneath. |
 | 3 | Values saved at a coarser development view land in the stored cells at their ages | [x] | 2026-09-06 | Figures saved while a yearly view of a monthly dataset is on screen now land in the monthly cells underneath, at the dates those columns stand for, and the rest of the triangle is cleared, exactly as ResQ does it. |
-| 4 | Typing, paste and links work when only the development view is coarser than the store | [ ] | | |
+| 4 | Typing, paste and links work when only the development view is coarser than the store | [x] | 2026-09-06 | A hand-entered dataset shown a year at a time over finer figures can now be typed into, pasted into and linked; only a view that groups the rows is still read-only, and the status line says a save will write each figure at its own column date and clear the periods between. |
 | 5 | The export macro writes a hand-entered triangle to ResQ at its stored shape | [ ] | | |
 | 6 | A yearly view of a monthly triangle is pinned to ResQ's own numbers | [ ] | | |
 | 7 | The server components carry the change | [ ] | | |
 
-Overall: 3 of 7 steps done.
+Overall: 4 of 7 steps done.
 
 ## How agents work this plan
 
@@ -178,14 +178,14 @@ Steps 1→2 and 3→4 are ordered pairs. Steps 1 and 3 both edit the dataset sav
 
 **Goal.** The grid, paste and the Links tab accept values when only the development display is coarser than the store; the origin axis stays read-only with a message that names it.
 
-**Read first.** ResQ rules 5–6 and Decision 1; [data_tab_persistence_controller.js:323-340](../../frontend/ui/shared/tabs/data/data_tab_persistence_controller.js#L323-L340); [data_tab_preferences_controller.js:367-387](../../frontend/ui/shared/tabs/data/data_tab_preferences_controller.js#L367-L387); the read-only check in [dataset_run_controller.js:553](../../frontend/ui/shared/dataset/dataset_run_controller.js#L553) and the paste guard in [dataset_grid_interactions.js](../../frontend/ui/shared/tabs/data/dataset_grid_interactions.js) (search for `isDatasetReadOnly`); [dataset.md:109](../../frontend/docs/ui/dataset.md#L109); [dataset_length_lock.test.mjs:403-432](../../frontend/tests/dataset_length_lock.test.mjs#L403-L432). Memory notes: `frontend-node-test-suite`, `arcrho-dev-ui-cache-restart`.
+**Read first.** ResQ rules 5–6 and Decision 1; [data_tab_persistence_controller.js:323-340](../../frontend/ui/shared/tabs/data/data_tab_persistence_controller.js#L323-L340); [data_tab_preferences_controller.js:367-387](../../frontend/ui/shared/tabs/data/data_tab_preferences_controller.js#L367-L387); the read-only check in [dataset_run_controller.js:553](../../frontend/ui/shared/dataset/dataset_run_controller.js#L553) and the paste guard in [dataset_grid_interactions.js](../../frontend/ui/shared/tabs/data/dataset_grid_interactions.js) (search for `isDatasetReadOnly`); [dataset.md:109](../../frontend/docs/ui/dataset.md#L109); [dataset_length_lock.test.mjs:403-432](../../frontend/tests/dataset_length_lock.test.mjs#L403-L432). Also needed and added while working the step: the run controller's post-load status line at [dataset_run_controller.js:530-537](../../frontend/ui/shared/dataset/dataset_run_controller.js#L530-L537) and its wiring in [data_tab_host_controller.js:890-894](../../frontend/ui/shared/tabs/data/data_tab_host_controller.js#L890-L894) (where the new note is passed in), the cache-version chain through [data_tab_controller.js](../../frontend/ui/shared/tabs/data/data_tab_controller.js) to both hosts and its pins in [shared_tab_surfaces.test.mjs](../../frontend/tests/shared_tab_surfaces.test.mjs) and [color_theme.test.mjs](../../frontend/tests/color_theme.test.mjs), and [changes/README.md](../../frontend/changes/README.md) for the release fragment. Memory notes: `frontend-node-test-suite`, `arcrho-dev-ui-cache-restart`, `theme-css-version-pins`.
 
 **Do.**
 
-- [ ] Split the coarser-than-stored test by axis; `isDatasetReadOnly` uses the origin axis only, and the message becomes `Values can be entered only at the stored origin period (Origin 1). Set the origin length back to edit.` (a vector keeps its `Period` wording).
-- [ ] The save keeps sending the grid at the display shape; the server scatters it (step 3). The reload after save shows the roll-up of the new store, which already happens.
-- [ ] While a development display is coarser than the store, the status line says in one sentence that values are stored at their column ages and the months between are cleared.
-- [ ] Update [dataset.md](../../frontend/docs/ui/dataset.md).
+- [x] Split the coarser-than-stored test by axis; `isDatasetReadOnly` uses the origin axis only, and the message becomes `Values can be entered only at the stored origin period (Origin 1). Set the origin length back to edit.` (a vector keeps its `Period` wording).
+- [x] The save keeps sending the grid at the display shape; the server scatters it (step 3). The reload after save shows the roll-up of the new store, which already happens.
+- [x] While a development display is coarser than the store, the status line says in one sentence that values are stored at their column ages and the months between are cleared.
+- [x] Update [dataset.md](../../frontend/docs/ui/dataset.md).
 
 **Tests.** [dataset_length_lock.test.mjs](../../frontend/tests/dataset_length_lock.test.mjs) gains: a development-coarse view is editable and shows the one-sentence note; an origin-coarse view is read-only with the origin message; a vector is unchanged.
 

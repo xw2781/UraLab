@@ -50,6 +50,7 @@ export function createDatasetRunController(deps) {
     loadingPopupDelayMs = DEFAULT_LOADING_POPUP_DELAY_MS,
     isDatasetReadOnly = () => false,
     datasetReadOnlyMessage = () => "Generated datasets are read-only.",
+    datasetCoarseDevelopmentNote = () => "",
   } = deps;
   const resolvedLoadingPopupDelayMs = Number.isFinite(Number(loadingPopupDelayMs))
     ? Math.max(0, Number(loadingPopupDelayMs))
@@ -529,7 +530,10 @@ export function createDatasetRunController(deps) {
       const path = (document.getElementById("pathInput")?.value || "").trim();
       const tri = (document.getElementById("triInput")?.value || "").trim();
       const meta = [path, tri].filter(Boolean).join(" | ");
-      setStatus(meta || "Ready");
+      // A development view coarser than the store is editable, but a save
+      // there rewrites the whole stored triangle, so say so for as long as
+      // that view is on screen rather than only when an edit is refused.
+      setStatus(datasetCoarseDevelopmentNote() || meta || "Ready");
     }
     const title = updateCurrentTabTitle() || config.DS_ID || "Dataset";
     notifyDataTabDurableDatasetState({ source: "load" });

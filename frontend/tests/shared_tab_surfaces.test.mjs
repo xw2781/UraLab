@@ -180,10 +180,10 @@ test("DSV and DFM reach the current shared Data validation runtime", async () =>
     source("ui/shared/tabs/data/data_tab_controller.js"),
   ]);
 
-  assert.match(datasetHtml, /dataset_viewer_main\.js\?v=20260906b/u);
-  assert.match(datasetMain, /data_tab_controller\.js\?v=20260906b/u);
-  assert.match(dfmHtml, /dfm_data_tab_adapter\.js\?v=20260906b/u);
-  assert.match(dfmAdapter, /data_tab_controller\.js\?v=20260906b/u);
+  assert.match(datasetHtml, /dataset_viewer_main\.js\?v=20260906c/u);
+  assert.match(datasetMain, /data_tab_controller\.js\?v=20260906c/u);
+  assert.match(dfmHtml, /dfm_data_tab_adapter\.js\?v=20260906c/u);
+  assert.match(dfmAdapter, /data_tab_controller\.js\?v=20260906c/u);
   assert.match(dataController, /data_tab_controls\.js\?v=20260906b/u);
   assert.match(dataController, /data_tab_inputs_controller\.js\?v=20260906b/u);
   assert.match(dataController, /data_tab_request_controller\.js\?v=20260906b/u);

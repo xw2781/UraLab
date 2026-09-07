@@ -381,14 +381,22 @@ export function registerDataTabPersistenceController(runtime) {
     };
   }
 
-  // A coarser display is a roll-up of the file, not the file, so the cells on
-  // screen are not the ones a value would be written into.
-  function datasetDisplayIsCoarserThanStored() {
+  // The two axes part company on a coarser display. A coarse origin row is the
+  // calendar diagonal of several finer rows and has no single cell to write
+  // back to, so ResQ refuses it and so does ArcRho. A coarse development column
+  // does have one: the stored cell at that column's own age, which is where
+  // ResQ puts the value, so the grid stays editable there.
+  function datasetOriginDisplayIsCoarserThanStored() {
     if (storedLengthIsPending()) return false;
     const stored = getStoredLengthPair();
     const current = getCurrentLengthControlValues();
-    if (stored.origin_length > 0 && current.origin_length > stored.origin_length) return true;
-    if (currentDatasetIsVector()) return false;
+    return stored.origin_length > 0 && current.origin_length > stored.origin_length;
+  }
+
+  function datasetDevelopmentDisplayIsCoarserThanStored() {
+    if (storedLengthIsPending() || currentDatasetIsVector()) return false;
+    const stored = getStoredLengthPair();
+    const current = getCurrentLengthControlValues();
     return stored.development_length > 0 && current.development_length > stored.development_length;
   }
 
@@ -397,7 +405,15 @@ export function registerDataTabPersistenceController(runtime) {
     if (currentDatasetIsVector()) {
       return `Values can be entered only at the stored period (Period ${stored.origin_length}). Set the length back to edit.`;
     }
-    return `Values can be entered only at the stored period (Origin ${stored.origin_length}, Development ${stored.development_length}). Set the lengths back to edit.`;
+    return `Values can be entered only at the stored origin period (Origin ${stored.origin_length}). Set the origin length back to edit.`;
+  }
+
+  // Editing a coarse development view rewrites the whole stored triangle, so
+  // the status line says so in one sentence for as long as that view is up.
+  function datasetCoarseDevelopmentNote() {
+    if (!datasetDevelopmentDisplayIsCoarserThanStored()) return "";
+    const stored = getStoredLengthPair();
+    return `Saving here writes each value into the stored period (Development ${stored.development_length}) at its own column age and clears the stored periods between.`;
   }
 
   function applyStoredLengthChoices() {
@@ -1440,8 +1456,10 @@ export function registerDataTabPersistenceController(runtime) {
     storedDevelopmentLengthForSave,
     applyStoredLengthChoices,
     updateStoredLengthControls,
-    datasetDisplayIsCoarserThanStored,
+    datasetOriginDisplayIsCoarserThanStored,
+    datasetDevelopmentDisplayIsCoarserThanStored,
     datasetCoarserViewMessage,
+    datasetCoarseDevelopmentNote,
     validateManualDatasetLengthChange,
     updateManualDatasetModeControls,
     updateVectorDevelopmentLengthControl,

@@ -13,7 +13,7 @@ import {
 export function registerDataTabHostController(runtime) {
   const { state, config, $, instanceId, stepId, workflowId, WF_GLOBAL_CTRL_PREFIX } = runtime;
   const defer = (name) => (...args) => runtime[name](...args);
-  const { updateDatasetSaveUi, getDatasetInstanceNameValue, getResolvedProjectValue, getResolvedReservingClassValue, hasManualInputGridChanges, previewCalculatedDatasetDependents, normalizeDatasetModeText, normalizeReservingClassPath, hasUnsavedDatasetChanges, validateDatasetOriginLabels, getTriInputs, renderTable, renderChart, loadDataset, handleDatasetSaveCommand, handleWorkflowGlobalChange, clearValidValueListCache, logLine, loadCachedDataset, saveLastDsId, syncSidecarForCurrentDataset, applyGridSelectionFromState, recordDatasetBrowsingHistory, saveTriInputsToStorage, setDatasetRenderNumberFormatSettings, hasResultSelectionUpdates, createDatasetHeadersService, createDatasetRunController, validateTriInputsBeforeRun, buildTriRequestPayload, buildVecRequestPayload, getDatasetRunDataFormat, invalidateDatasetContextLoads, isDatasetReadOnly, getDatasetReadOnlyMessage, getDataset, patchDataset, isDfmDataTabHost } = new Proxy({}, { get: (_target, name) => defer(name) });
+  const { updateDatasetSaveUi, getDatasetInstanceNameValue, getResolvedProjectValue, getResolvedReservingClassValue, hasManualInputGridChanges, previewCalculatedDatasetDependents, normalizeDatasetModeText, normalizeReservingClassPath, hasUnsavedDatasetChanges, validateDatasetOriginLabels, getTriInputs, renderTable, renderChart, loadDataset, handleDatasetSaveCommand, handleWorkflowGlobalChange, clearValidValueListCache, logLine, loadCachedDataset, saveLastDsId, syncSidecarForCurrentDataset, applyGridSelectionFromState, recordDatasetBrowsingHistory, saveTriInputsToStorage, setDatasetRenderNumberFormatSettings, hasResultSelectionUpdates, createDatasetHeadersService, createDatasetRunController, validateTriInputsBeforeRun, buildTriRequestPayload, buildVecRequestPayload, getDatasetRunDataFormat, invalidateDatasetContextLoads, isDatasetReadOnly, getDatasetReadOnlyMessage, datasetCoarseDevelopmentNote, getDataset, patchDataset, isDfmDataTabHost } = new Proxy({}, { get: (_target, name) => defer(name) });
   const FONT_STORAGE_KEY = "arcrho_app_font";
   const FORCE_REBUILD_KEY = "arcrho_force_rebuild_enabled";
   const CALCULATED_DATASETS_UPDATED_MESSAGE = "arcrho:calculated-datasets-updated";
@@ -890,6 +890,7 @@ export function registerDataTabHostController(runtime) {
     suppressLoadingPopup: isDfmDataTabHost(),
     isDatasetReadOnly,
     datasetReadOnlyMessage: getDatasetReadOnlyMessage,
+    datasetCoarseDevelopmentNote,
   });
 
 

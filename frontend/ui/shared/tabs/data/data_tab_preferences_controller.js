@@ -3,7 +3,7 @@
 export function registerDataTabPreferencesController(runtime) {
   const { BROWSING_HISTORY_MAX_ENTRIES, DEFAULT_PATH_DISPLAY, DEFAULT_PROJECT_DISPLAY, DEFAULT_TOKEN, instanceId, isProjectInstanceDraft, isReadOnlyDatasetViewer, isTemporaryDatasetView, LOCAL_PROJECT_PREFS_ENDPOINT, LS_DS_KEY, LS_FORM_KEY, scopedKey, WF_GLOBAL_CTRL_PREFIX, workflowId } = runtime;
   const defer = (name) => (...args) => runtime[name](...args);
-  const { normalizeReservingClassPath, isDfmDataTabHost, normalizeProjectText, loadProjectUserPreferences, scheduleProjectUserPreferencesSave, updateDatasetSaveUi, normalizeBrowsingHistoryEntry, pushBrowsingHistoryEntry, getDatasetDecimalPlacesValue, getDatasetSyncedNumberFormatValue, findExactProjectMatch, setLastViewedDatasetInputs, refreshDatasetSettingsDirty, getLastViewedDatasetInputs, readDatasetInputsFromQueryParams, refreshLenDropdowns, datasetDisplayIsCoarserThanStored, datasetCoarserViewMessage, setDatasetDecimalPlacesValue, setDatasetNumberFormatValue, ensureHeadersForProject, ensureDevHeadersForProject, refreshDatasetTypesForProject, refreshReservingClassPathsForProject, renderProjectOptions, scheduleAutoRun } = new Proxy({}, { get: (_target, name) => defer(name) });
+  const { normalizeReservingClassPath, isDfmDataTabHost, normalizeProjectText, loadProjectUserPreferences, scheduleProjectUserPreferencesSave, updateDatasetSaveUi, normalizeBrowsingHistoryEntry, pushBrowsingHistoryEntry, getDatasetDecimalPlacesValue, getDatasetSyncedNumberFormatValue, findExactProjectMatch, setLastViewedDatasetInputs, refreshDatasetSettingsDirty, getLastViewedDatasetInputs, readDatasetInputsFromQueryParams, refreshLenDropdowns, datasetOriginDisplayIsCoarserThanStored, datasetCoarserViewMessage, setDatasetDecimalPlacesValue, setDatasetNumberFormatValue, ensureHeadersForProject, ensureDevHeadersForProject, refreshDatasetTypesForProject, refreshReservingClassPathsForProject, renderProjectOptions, scheduleAutoRun } = new Proxy({}, { get: (_target, name) => defer(name) });
   const datasetProjectPrefs = new Map();
   let localDatasetViewerPrefsLoadPromise = null;
   let localDatasetViewerProjectSaved = "";
@@ -371,9 +371,10 @@ export function registerDataTabPreferencesController(runtime) {
       || isReadOnlyDatasetViewer
       || runtime.isSidecarReadOnlyDataset
       || runtime.datasetSaveInFlight
-      // A coarser view is a roll-up of the file, so its cells are not the ones
-      // a typed value, a paste or a link would be written into.
-      || datasetDisplayIsCoarserThanStored();
+      // Only the origin axis locks the grid. A coarse origin row has no single
+      // stored cell behind it, while a coarse development column does, so
+      // typing, paste and links stay live there and the save scatters them.
+      || datasetOriginDisplayIsCoarserThanStored();
   }
 
   // Every refusal the grid, the Links tab and the patch save report comes from
@@ -382,7 +383,7 @@ export function registerDataTabPreferencesController(runtime) {
     const coarseOnly = !isTemporaryDatasetView
       && !isReadOnlyDatasetViewer
       && !runtime.isSidecarReadOnlyDataset
-      && datasetDisplayIsCoarserThanStored();
+      && datasetOriginDisplayIsCoarserThanStored();
     return coarseOnly ? datasetCoarserViewMessage() : GENERATED_DATASET_READ_ONLY_MESSAGE;
   }
 

@@ -1,0 +1,11 @@
+{
+  "type": "improvement",
+  "scope": "dataset",
+  "audience": "user",
+  "summary": "A hand-entered triangle can now be typed into, pasted into, and linked while it is shown a year at a time over finer figures.",
+  "details": [
+    "Only a view that groups the rows is still read-only, and its message now names that one control: set the Origin Length back to edit.",
+    "While the columns are grouped, the status line says in one line that a save writes each figure at its own column date and clears the periods between.",
+    "A vector keeps the wording it already had, because it has no columns to group."
+  ]
+}
