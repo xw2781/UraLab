@@ -13,6 +13,7 @@ index is a summary of those lines, not a second source of truth.
 | Plan | Status |
 | :--- | :--- |
 | [build_new_methods.md](build_new_methods.md) | Four of five ResQ methods shipped; Bootstrap Consolidation is still open. Also holds the ResQ API and sample-project reference notes agents rely on. |
+| [dfm_average_row_import_rounding.md](dfm_average_row_import_rounding.md) | Diagnosed 2026-09-08 — importing a DFM average row rounds it to display decimal places, losing precision that compounds into the output ultimate vector and any downstream method or dataset built on it; fix not started. |
 | [generated_formula_dependency_refresh.md](generated_formula_dependency_refresh.md) | Investigated 2026-09-05; scoped Engine refresh and missing generated-formula dependency links explained; implementation proposed. |
 | [hosted_save_http_transport.md](hosted_save_http_transport.md) | Implemented for every hosted-save kind; TLS, traffic limits, and retiring the SMB path remain. |
 | [hosted_workspace_http_transport.md](hosted_workspace_http_transport.md) | Phase 1 reads and Phase 2 engine calculations implemented; the bounded-server foundation, SSE, and small writes remain. |

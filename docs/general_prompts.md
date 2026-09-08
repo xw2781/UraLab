@@ -47,7 +47,7 @@ server-components\deploy.bat
 
 ## Reconciliations
 
-### DFM triangles
+### DFM I/O
 py -3.10 python-api/migration/validation/dfm_ratio_side_by_side_review.py
 
 ### Result Selections
@@ -55,6 +55,7 @@ py -3.10 python-api/migration/validation/rs_dataset_side_by_side_review.py
 
 ### Datasets (no method)
 py -3.10 python-api/migration/validation/dataset_side_by_side_review.py
+Checked at 1:46 PM, 9/8/2026. 0 dataset(s) need review.
 
 py -3.10 python-api/migration/validation/dataset_side_by_side_review.py --source-kind all --rc "Legacy\HOL"
 
