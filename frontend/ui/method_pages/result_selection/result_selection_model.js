@@ -186,7 +186,7 @@
           throw new Error("Save or discard the upstream dependency preview before saving Result Selection.");
         }
         if (mutation && state.persistedMutationInFlight !== mutation.id) {
-          throw new Error("Another Result Selection save or sync superseded this operation.");
+          throw new Error("Another Result Selection save superseded this operation.");
         }
         if (mutation && Number(state.dependencyEventSeq || 0) !== mutation.dependencyEventSeq) {
           throw new Error("An upstream dependency changed while Result Selection was preparing to save; wait for refresh and try again.");
@@ -196,7 +196,7 @@
       function beginPersistedMutation() {
         assertPersistedMutationReady();
         if (state.persistedMutationInFlight) {
-          throw new Error("Another Result Selection save or sync is already in progress.");
+          throw new Error("Another Result Selection save is already in progress.");
         }
         const mutation = {
           id: Number(state.persistedMutationSeq || 0) + 1,
@@ -355,31 +355,6 @@
         }
       }
 
-      async function applySavedResult(payload, mutation = null) {
-        const method = payload?.method || payload?.payload || {};
-        await applyPayload(method);
-        recordPersistedMethodDependencies(method);
-        applyOutputSidecar(payload?.sidecar || {});
-        state.methodRevision = String(payload?.method_revision || "");
-        state.needsReview = false;
-        state.loadBlocked = false;
-        state.pendingPropagationJobId = String(payload?.propagation?.job_id || "").trim();
-        markClean();
-        rsWatch.ensure({
-          projectName: state.project,
-          reservingClass: state.reservingClass,
-          methodName: getDetails().name,
-          outputDataset: getDetails().name,
-          selfWriteStamp: payload?.sidecar?.updated_at,
-        });
-        reconcilePersistedMutation(mutation, "dependency update during Result Selection RPC sync");
-        void ctx.refreshDetailsDependencies?.();
-        try {
-          window.parent?.postMessage({ type: "arcrho:project-instance-refresh-datasets" }, "*");
-        } catch {}
-        void trackPersistedPropagation(payload);
-      }
-
       function setNotesText(value) {
         notesController.setValue(String(value ?? ""), { markClean: true });
       }
@@ -397,7 +372,6 @@
         snapshotPayload,
         markClean,
         saveResultSelection,
-        applySavedResult,
         beginPersistedMutation,
         finishPersistedMutation,
         assertPersistedMutationReady,

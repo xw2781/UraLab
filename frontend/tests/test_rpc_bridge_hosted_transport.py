@@ -1,4 +1,4 @@
-"""Gateway transport for the DFM and Result Selection RPC bridge routes.
+"""Gateway transport for the DFM RPC bridge routes.
 
 The ArcRho Bridge that answers these requests runs on the server host, where
 the request folder and the method files are local disk; only the Client PC half
@@ -38,22 +38,12 @@ from arcrho_workspace_read_contract import WORKSPACE_READ_KINDS
 import app_server.api  # noqa: F401  (registers the route submodules)
 
 dfm_rpc_bridge_router = sys.modules["app_server.api.dfm_rpc_bridge_router"]
-result_selection_rpc_bridge_router = sys.modules[
-    "app_server.api.result_selection_rpc_bridge_router"
-]
 
 from app_server.schemas.dfm_rpc_bridge import (
     DfmRpcBridgeRequest,
     DfmRpcBridgeUpdateRemoteRequest,
 )
-from app_server.schemas.result_selection_rpc_bridge import (
-    ResultSelectionRpcBridgeRequest,
-    ResultSelectionRpcBridgeUpdateRemoteRequest,
-)
-from app_server.services import (
-    dfm_rpc_bridge_service,
-    result_selection_rpc_bridge_service,
-)
+from app_server.services import dfm_rpc_bridge_service
 
 
 DFM_KINDS = {
@@ -61,12 +51,6 @@ DFM_KINDS = {
     "dfm_rpc_bridge_keep_local": "hosted_keep_local",
     "dfm_rpc_bridge_cleanup": "hosted_cleanup_tmp",
     "dfm_rpc_bridge_update_remote": "hosted_update_remote",
-}
-RS_KINDS = {
-    "result_selection_rpc_bridge_sync": "hosted_send_sync_request",
-    "result_selection_rpc_bridge_keep_local": "hosted_keep_local",
-    "result_selection_rpc_bridge_cleanup": "hosted_cleanup_tmp",
-    "result_selection_rpc_bridge_update_remote": "hosted_update_remote",
 }
 
 
@@ -86,68 +70,38 @@ def dfm_request(**overrides):
     return DfmRpcBridgeRequest(**fields)
 
 
-def rs_request(**overrides):
-    fields = dict(
-        project_name="Demo",
-        reserving_class="COL",
-        method_name="M",
-        output_type="Ultimate",
-        origin_length=12,
-        timeout_sec=8.0,
-    )
-    fields.update(overrides)
-    return ResultSelectionRpcBridgeRequest(**fields)
-
-
 class RegistrationTests(unittest.TestCase):
     """The contract is the only table; a kind must name a real entry point."""
 
     def test_every_rpc_bridge_kind_names_its_service_function(self) -> None:
-        for kind, function in {**DFM_KINDS, **RS_KINDS}.items():
+        for kind, function in DFM_KINDS.items():
             spec = WORKSPACE_MUTATION_KINDS[kind]
             self.assertEqual(spec.function, function)
-            module = (
-                dfm_rpc_bridge_service
-                if kind.startswith("dfm_")
-                else result_selection_rpc_bridge_service
-            )
+            module = dfm_rpc_bridge_service
             self.assertEqual(spec.module, module.__name__.rsplit(".", 1)[-1])
             self.assertTrue(callable(getattr(module, spec.function)))
 
-        for kind, module in (
-            ("dfm_rpc_bridge_compare", dfm_rpc_bridge_service),
-            ("result_selection_rpc_bridge_compare", result_selection_rpc_bridge_service),
-        ):
-            spec = WORKSPACE_READ_KINDS[kind]
-            self.assertEqual(spec.function, "hosted_compare")
-            self.assertTrue(callable(getattr(module, spec.function)))
+        spec = WORKSPACE_READ_KINDS["dfm_rpc_bridge_compare"]
+        self.assertEqual(spec.function, "hosted_compare")
+        self.assertTrue(callable(getattr(dfm_rpc_bridge_service, spec.function)))
 
     def test_registered_arguments_are_exactly_the_route_schema_fields(self) -> None:
         # The hosted entry point rebuilds the request model from these, so a
         # kwarg the schema does not define would only fail on the Gateway.
-        for kinds, model in (
-            (list(DFM_KINDS) + ["dfm_rpc_bridge_compare"], DfmRpcBridgeRequest),
-            (list(RS_KINDS) + ["result_selection_rpc_bridge_compare"], ResultSelectionRpcBridgeRequest),
-        ):
-            for kind in kinds:
-                spec = WORKSPACE_MUTATION_KINDS.get(kind) or WORKSPACE_READ_KINDS[kind]
-                fields = set(model.model_fields)
-                if kind.endswith("update_remote"):
-                    fields.add("rpc_server_write_confirmed")
-                self.assertEqual(spec.allowed, fields, kind)
+        for kind in list(DFM_KINDS) + ["dfm_rpc_bridge_compare"]:
+            spec = WORKSPACE_MUTATION_KINDS.get(kind) or WORKSPACE_READ_KINDS[kind]
+            fields = set(DfmRpcBridgeRequest.model_fields)
+            if kind.endswith("update_remote"):
+                fields.add("rpc_server_write_confirmed")
+            self.assertEqual(spec.allowed, fields, kind)
 
     def test_an_omitted_optional_argument_defers_to_the_route_schema(self) -> None:
         # The hosted signature must not restate a default the schema owns: an
         # optional argument left out arrives as None and is dropped, so both
         # transports fill it in from the same place.
-        for kind, function in {**DFM_KINDS, **RS_KINDS}.items():
+        for kind, function in DFM_KINDS.items():
             spec = WORKSPACE_MUTATION_KINDS[kind]
-            module = (
-                dfm_rpc_bridge_service
-                if kind.startswith("dfm_")
-                else result_selection_rpc_bridge_service
-            )
-            parameters = inspect.signature(getattr(module, function)).parameters
+            parameters = inspect.signature(getattr(dfm_rpc_bridge_service, function)).parameters
             self.assertEqual(set(parameters), set(spec.allowed), kind)
             for name in spec.optional:
                 self.assertIsNone(parameters[name].default, f"{kind}: {name}")
@@ -258,43 +212,6 @@ class RouteWiringTests(unittest.TestCase):
         self._assert_registered(mutations, WORKSPACE_MUTATION_KINDS)
         self._assert_registered(reads, WORKSPACE_READ_KINDS)
 
-    def test_result_selection_routes_name_their_kinds(self) -> None:
-        mutations = _CaptureMutation()
-        reads = _CaptureRead()
-        request = rs_request()
-        confirmed = ResultSelectionRpcBridgeUpdateRemoteRequest(
-            **{**request.model_dump(), "rpc_server_write_confirmed": True}
-        )
-        service = result_selection_rpc_bridge_router.result_selection_rpc_bridge_service
-        with (
-            patch.object(result_selection_rpc_bridge_router.workspace_mutation_client, "run_workspace_mutation", mutations),
-            patch.object(result_selection_rpc_bridge_router.workspace_read_client, "run_workspace_read", reads),
-            patch.object(service, "send_sync_request", return_value={"ok": True}),
-            patch.object(service, "compare", return_value={"ok": True}),
-            patch.object(service, "keep_local", return_value={"ok": True}),
-            patch.object(service, "cleanup_tmp", return_value={"ok": True}),
-            patch.object(service, "update_remote", return_value={"ok": True}),
-        ):
-            result_selection_rpc_bridge_router.sync_result_selection_rpc_bridge(request)
-            result_selection_rpc_bridge_router.compare_result_selection_rpc_bridge(request)
-            result_selection_rpc_bridge_router.keep_local_result_selection_rpc_bridge(request)
-            result_selection_rpc_bridge_router.cleanup_result_selection_rpc_bridge(request)
-            result_selection_rpc_bridge_router.update_remote_result_selection_rpc_bridge(confirmed)
-        self.assertEqual(
-            [kind for kind, _ in mutations.calls],
-            [
-                "result_selection_rpc_bridge_sync",
-                "result_selection_rpc_bridge_keep_local",
-                "result_selection_rpc_bridge_cleanup",
-                "result_selection_rpc_bridge_update_remote",
-            ],
-        )
-        self.assertEqual(
-            [kind for kind, _ in reads.calls], ["result_selection_rpc_bridge_compare"]
-        )
-        self._assert_registered(mutations, WORKSPACE_MUTATION_KINDS)
-        self._assert_registered(reads, WORKSPACE_READ_KINDS)
-
     def test_a_hosted_sync_is_never_also_run_locally(self) -> None:
         # The Bridge exports from ResQ for every request file it claims, so a
         # second publish after an answered one is duplicated work.
@@ -343,36 +260,29 @@ class RequestFileTests(unittest.TestCase):
     def test_the_request_file_carries_the_acting_user(self) -> None:
         from app_server.services import user_identity_service
 
-        for service in (dfm_rpc_bridge_service, result_selection_rpc_bridge_service):
-            request = dfm_request() if service is dfm_rpc_bridge_service else rs_request()
-            with tempfile.TemporaryDirectory() as folder:
-                with user_identity_service.acting_identity("someone_else", "Someone Else"):
-                    path = service._write_request_file(request, "DFM", "C:\\out.json", folder)
-                with open(path, "r", encoding="utf-8") as handle:
-                    payload = json.load(handle)
-            self.assertEqual(payload["UserName"], "someone_else")
-            self.assertNotEqual(payload["UserName"], os.environ.get("USERNAME"))
+        with tempfile.TemporaryDirectory() as folder:
+            with user_identity_service.acting_identity("someone_else", "Someone Else"):
+                path = dfm_rpc_bridge_service._write_request_file(
+                    dfm_request(), "DFM", "C:\\out.json", folder
+                )
+            with open(path, "r", encoding="utf-8") as handle:
+                payload = json.load(handle)
+        self.assertEqual(payload["UserName"], "someone_else")
+        self.assertNotEqual(payload["UserName"], os.environ.get("USERNAME"))
 
 
 class CompareReadCountTests(unittest.TestCase):
     """Each side of the comparison is parsed once, not two and three times."""
 
-    def _method_payload(self, spaced: bool) -> dict:
-        if spaced:
-            return {
-                "json_format": "arcrho-dfm-v4",
-                "details_tab": {"name": "M", "output_dataset": "Out"},
-                "ratios_tab": {"ratio_triangle": {"excluded": [[0, 1]]}, "average_formulas": {"label": ["Straight"]}},
-                "method_metadata": {"last_modified": "2026-08-18T10:00:00Z"},
-            }
+    def _method_payload(self) -> dict:
         return {
-            "json_format": "arcrho-result-selection-v4",
-            "details_tab": {"name": "M", "output_type": "Ultimate", "origin_length": 12},
-            "method_tab": {"loaded_datasets": []},
+            "json_format": "arcrho-dfm-v4",
+            "details_tab": {"name": "M", "output_dataset": "Out"},
+            "ratios_tab": {"ratio_triangle": {"excluded": [[0, 1]]}, "average_formulas": {"label": ["Straight"]}},
             "method_metadata": {"last_modified": "2026-08-18T10:00:00Z"},
         }
 
-    def _run(self, service, request, spaced: bool) -> int:
+    def _run(self, service, request) -> int:
         opened: list[str] = []
         real_open = open
 
@@ -385,7 +295,7 @@ class CompareReadCountTests(unittest.TestCase):
             remote_path = os.path.join(folder, "remote.json")
             for path in (local_path, remote_path):
                 with open(path, "w", encoding="utf-8") as handle:
-                    json.dump(self._method_payload(spaced), handle)
+                    json.dump(self._method_payload(), handle)
             paths = {
                 "project_dir": folder,
                 "data_dir": folder,
@@ -399,21 +309,15 @@ class CompareReadCountTests(unittest.TestCase):
             with (
                 patch.object(service, "build_paths", return_value=paths),
                 patch("builtins.open", counting_open),
+                patch.object(service, "_sidecar_method_notes_snapshot", return_value={"exists": False, "text": ""}),
             ):
-                if service is dfm_rpc_bridge_service:
-                    with patch.object(service, "_sidecar_method_notes_snapshot", return_value={"exists": False, "text": ""}):
-                        result = service.compare(request)
-                else:
-                    result = service.compare(request)
+                result = service.compare(request)
         self.assertTrue(result["ok"])
         self.assertEqual(result["comparison"], "same_time")
         return len([path for path in opened if path in (local_path, remote_path)])
 
     def test_dfm_compare_opens_each_method_json_once(self) -> None:
-        self.assertEqual(self._run(dfm_rpc_bridge_service, dfm_request(), True), 2)
-
-    def test_result_selection_compare_opens_each_method_json_once(self) -> None:
-        self.assertEqual(self._run(result_selection_rpc_bridge_service, rs_request(), False), 2)
+        self.assertEqual(self._run(dfm_rpc_bridge_service, dfm_request()), 2)
 
 
 if __name__ == "__main__":

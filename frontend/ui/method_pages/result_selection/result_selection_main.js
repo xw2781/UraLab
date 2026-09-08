@@ -17,7 +17,6 @@ import { wireTabPopoutWindows } from "/ui/shared/tabbed_page/tab_popout_window.j
 import { mountNotesTab } from "/ui/shared/tabs/notes/notes_tab.js?v=20260714a";
 import { syncDetailsLabelWidth } from "/ui/shared/tabs/details/details_form_layout.js?v=20260820b";
 import { createDetailsDependenciesController } from "/ui/shared/tabs/details/details_dependencies.js?v=20260820b";
-import { startResultSelectionRpcBridgeSync } from "/ui/method_pages/result_selection/result_selection_rpc_bridge_client.js?v=20260817e";
 import { createPageCloseConfirm } from "/ui/shared/components/close_confirm/close_confirm.js";
 import { showMethodSaveReviewWarning } from "/ui/shared/components/message_box/method_save_review_warning.js?v=20260827a";
 import { showPageMessageBox } from "/ui/shared/components/message_box/message_box.js?v=20260831a";
@@ -189,7 +188,6 @@ const els = {
   weightDisplayButton: document.getElementById("rsWeightDisplayButton"),
   weightDisplayLabel: document.getElementById("rsWeightDisplayLabel"),
   weightDisplayMenu: document.getElementById("rsWeightDisplayMenu"),
-  syncBtn: document.getElementById("rsSyncBtn"),
   activeRatioBasisDropdown: document.getElementById("rsActiveRatioBasisDropdown"),
   activeRatioBasisButton: document.getElementById("rsActiveRatioBasisButton"),
   activeRatioBasisLabel: document.getElementById("rsActiveRatioBasisLabel"),
@@ -268,7 +266,6 @@ const ctx = {
   rsObjectChangeWatch,
   rsSaveProgress,
   showSavedDependentsNotice,
-  startResultSelectionRpcBridgeSync,
   readProjectInstanceDatasetSnapshot,
   resultSelectionUpdateContexts,
   resultSelectionUpdateNames,

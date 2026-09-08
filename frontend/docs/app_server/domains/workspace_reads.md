@@ -22,7 +22,6 @@ No new browser-facing route. These existing routes select the transport per requ
 | `POST /excel_links/list` | `excel_link_listing` | `excel_link_service.list_reserving_class_excel_links` |
 | `GET /table_summary` | `table_summary` | `table_summary_service.get_table_summary` |
 | `POST /dfm/rpc-bridge/compare` | `dfm_rpc_bridge_compare` | `dfm_rpc_bridge_service.hosted_compare` |
-| `POST /result-selection/rpc-bridge/compare` | `result_selection_rpc_bridge_compare` | `result_selection_rpc_bridge_service.hosted_compare` |
 | (no route; the ResQ import and sync macros call `run_workspace_read` directly through `arcrho_api.bridge_liveness.observe_bridge_liveness`) | `bridge_worker_liveness` | `bridge_liveness_service.get_bridge_worker_liveness` |
 
 Gateway side: `POST /api/workspace-reads` on the Gateway (`arcrho_workspace_read_contract.WORKSPACE_READ_PATH`), authenticated with the same per-user HMAC headers as hosted saves. `GET /api/capabilities` advertises `workspace_read_kinds`.

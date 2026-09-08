@@ -146,7 +146,6 @@
           els.showWeightsInput,
           els.weightDisplayButton,
           els.activeRatioBasisButton,
-          els.syncBtn,
           els.saveBtn,
           els.notesInput,
           ...Array.from(els.methodGrid?.querySelectorAll?.("input, button") || []),
@@ -1405,19 +1404,6 @@
               if (removed) postStatus(`Removed ${removed} loaded source${removed === 1 ? "" : "s"} from a different Category.`, "warn");
             },
           });
-        });
-        els.syncBtn?.addEventListener("click", () => {
-          startResultSelectionRpcBridgeSync({
-            getDetails,
-            getProject: () => state.project,
-            getReservingClass: () => state.reservingClass,
-            getIsDirty: () => isDirty,
-            save: saveResultSelection,
-            applySavedResult,
-            beginPersistedMutation,
-            finishPersistedMutation,
-            postStatus,
-          }, els.syncBtn).catch((err) => postStatus(`Result Selection sync failed: ${err?.message || err}`, "error"));
         });
         els.saveBtn?.addEventListener("click", () => {
           saveResultSelection()

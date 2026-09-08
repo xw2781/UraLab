@@ -192,12 +192,6 @@ WORKSPACE_READ_KINDS: dict[str, WorkspaceReadKind] = {
         ),
         ("decimal_places", "timeout_sec"),
     ),
-    "result_selection_rpc_bridge_compare": WorkspaceReadKind(
-        "result_selection_rpc_bridge_service",
-        "hosted_compare",
-        ("project_name", "reserving_class", "method_name", "origin_length"),
-        ("output_type", "timeout_sec"),
-    ),
     # Resolving a Dataset window's internal cell links reads one cached
     # dataset per unique referenced name; on the server host those reads are
     # local disk, so a Client PC pays one HTTP round trip instead of one SMB

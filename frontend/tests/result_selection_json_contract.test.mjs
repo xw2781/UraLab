@@ -153,23 +153,15 @@ test("Result Selection previews tolerate an incomplete Ratio Basis load", async 
   assert.doesNotMatch(source, /payload\.values = buildPayload\(\)\.method_tab\.selected_ultimate/);
 });
 
-test("Result Selection save and RPC writes preserve newer dependency refreshes", async () => {
+test("Result Selection saves preserve newer dependency refreshes", async () => {
   const modelSource = await readFile(
     new URL("../ui/method_pages/result_selection/result_selection_model.js", import.meta.url),
-    "utf8",
-  );
-  const rpcSource = await readFile(
-    new URL("../ui/method_pages/result_selection/result_selection_rpc_bridge_client.js", import.meta.url),
     "utf8",
   );
 
   assert.match(modelSource, /await refreshOriginLabels\(\{ render: false \}\);\s*assertPersistedMutationReady\(mutation\);\s*const method = buildPayload\(\);/u);
   assert.doesNotMatch(modelSource, /^\s*invalidatePersistedRefresh\(\);/mu);
   assert.match(modelSource, /reconcilePersistedMutation\(mutation/u);
-  assert.match(rpcSource, /beginPersistedMutation/);
-  assert.match(rpcSource, /await context\.applySavedResult\?\.\(data, persistedMutation\)/);
-  assert.match(rpcSource, /finishPersistedMutation/);
-  assert.doesNotMatch(rpcSource, /context\.applyPayload/);
 });
 
 test("dependency clears coalesce and local-only reloads do not rebuild the dataset index", async () => {

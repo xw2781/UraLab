@@ -18,7 +18,6 @@ from .reserving_class_router import router as reserving_class_router
 from .scripting_router import router as scripting_router
 from .dfm_rpc_bridge_router import router as dfm_rpc_bridge_router
 from .dfm_method_router import router as dfm_method_router
-from .result_selection_rpc_bridge_router import router as result_selection_rpc_bridge_router
 from .result_selection_router import router as result_selection_router
 from .bornhuetter_ferguson_router import router as bornhuetter_ferguson_router
 from .berquist_sherman_router import router as berquist_sherman_router
@@ -54,7 +53,6 @@ __all__ = [
     "scripting_router",
     "dfm_rpc_bridge_router",
     "dfm_method_router",
-    "result_selection_rpc_bridge_router",
     "result_selection_router",
     "bornhuetter_ferguson_router",
     "berquist_sherman_router",

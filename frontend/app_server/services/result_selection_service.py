@@ -17,7 +17,7 @@ import pandas as pd
 from fastapi import HTTPException
 
 from arcrho_api.io import persisted_json_text
-from arcrho_api.timestamps import persisted_timestamp, utc_now_text
+from arcrho_api.timestamps import utc_now_text
 from app_server import config
 from app_server.helpers import sanitize_dataset_file_name
 from app_server.services import (
@@ -1643,64 +1643,4 @@ def refresh_dependents(
         "downstream_blocked_names": _unique_names(downstream_blocked_names),
         "review_status_updates": review_status_updates,
         "index_error": index_error,
-    }
-
-
-def record_rpc_sync_last_modified(
-    project_name: str,
-    reserving_class: str,
-    method_name: str,
-    last_modified: str,
-) -> Dict[str, Any]:
-    """Record the time ResQ stamped on a method this workspace just uploaded.
-
-    The counterpart of ``dfm_service.record_rpc_sync_last_modified``, and it
-    exists for the same reason: an upload leaves ArcRho and ResQ holding
-    identical settings under different times, so the next sync review calls the
-    remote newer and offers to pull back what was just pushed. ResQ's own value
-    is what makes them compare equal -- this machine's clock would only move the
-    disagreement to whichever side runs faster.
-
-    Only ``method_metadata.last_modified`` changes, and the revision no longer
-    covers it, so an open editor keeps the token it saves with.
-    """
-
-    project = _clean(project_name)
-    reserving = _clean(reserving_class)
-    name = _clean(method_name)
-    stamped = _clean(last_modified)
-    if not project or not reserving or not name:
-        raise HTTPException(400, "project_name, reserving_class and method_name are required.")
-    if not stamped:
-        raise HTTPException(400, "last_modified is required.")
-    # The bridge reports the instant ResQ stamped; persist it in the one
-    # timestamp form so the file compares equal to what ResQ reports next time.
-    stamped = persisted_timestamp(stamped)
-    # A propagation walk rewrites whole method files in this class from another
-    # process, and this is a read-modify-write of one of them. Stand aside while
-    # it owns the class rather than risk reverting what it wrote.
-    if dependent_propagation_service.get_reserving_class_busy(project, reserving)["busy"]:
-        return {"ok": False, "status": "class_busy", "last_modified": ""}
-    method_path = _method_path(project, reserving, name)
-    with _lock(project, reserving):
-        current = _read_json(method_path)
-        if not current:
-            return {"ok": False, "status": "missing", "last_modified": ""}
-        if _clean(current.get("json_format")) != RESULT_SELECTION_JSON_FORMAT:
-            return {"ok": False, "status": "not_v2", "last_modified": ""}
-        metadata = current.get("method_metadata")
-        previous = _clean(metadata.get("last_modified")) if isinstance(metadata, dict) else ""
-        if previous == stamped:
-            return {"ok": True, "status": "unchanged", "last_modified": stamped}
-        updated = dict(current)
-        updated["method_metadata"] = {
-            **(metadata if isinstance(metadata, dict) else {}),
-            "last_modified": stamped,
-        }
-        _commit_text_files({method_path: _json_text(updated)})
-    return {
-        "ok": True,
-        "status": "stamped",
-        "last_modified": stamped,
-        "previous_last_modified": previous,
     }

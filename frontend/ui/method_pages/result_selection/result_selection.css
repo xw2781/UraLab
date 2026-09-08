@@ -27,19 +27,6 @@ body {
   flex-direction: column;
 }
 /* Shared tab-strip chrome is defined in ui/shared/tabbed_page/tabbed_page.css. */
-.rsTabBarSpacer {
-  flex: 1 1 auto;
-  min-width: 8px;
-}
-.rsTabBar .rsTabSyncBtn {
-  align-self: center;
-  height: 24px;
-  min-width: 56px;
-  padding: 0 10px;
-  margin-left: 8px;
-  position: relative;
-  z-index: 1;
-}
 @media (max-width: 520px) {
   .rsTabBar {
     padding-right: 4px;
@@ -50,15 +37,6 @@ body {
     left: 4px;
   }
   .rsTab {
-    padding-right: 6px;
-    padding-left: 6px;
-  }
-  .rsTabBarSpacer {
-    min-width: 4px;
-  }
-  .rsTabBar .rsTabSyncBtn {
-    min-width: 48px;
-    margin-left: 4px;
     padding-right: 6px;
     padding-left: 6px;
   }

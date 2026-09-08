@@ -5,20 +5,17 @@ import json
 import subprocess
 import unittest
 from pathlib import Path
-from unittest import mock
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 FRONTEND_ROOT = REPO_ROOT / "frontend"
 MIGRATION_ROOT = REPO_ROOT / "python-api" / "migration"
 PYTHON_API_ROOT = REPO_ROOT / "python-api" / "src"
-SERVER_COMPONENTS_ROOT = REPO_ROOT / "server-components" / "src"
-for path in (FRONTEND_ROOT, MIGRATION_ROOT, PYTHON_API_ROOT, SERVER_COMPONENTS_ROOT):
+for path in (FRONTEND_ROOT, MIGRATION_ROOT, PYTHON_API_ROOT):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
 
 from resq_migration import extractors
-from arcrho_bridge import resq_client
 from app_server.services import result_selection_service
 
 
@@ -86,22 +83,10 @@ class ResultSelection:
 
 
 class ResultSelectionCrossProducerContractTests(unittest.TestCase):
-    def test_migration_and_rpc_bridge_emit_exact_same_v2_payload(self) -> None:
+    def test_migration_and_frontend_emit_exact_same_v2_payload(self) -> None:
         logical_method = ResultSelection()
         migration_payload = extractors.export_result_selection(logical_method)
         migration_payload.pop("_sidecar_notes", None)
-
-        client = resq_client.ResQClient()
-        client._connect = lambda: None
-        client._disconnect = lambda: None
-        client._result_selection_method = lambda _request: logical_method
-        with mock.patch.object(resq_client, "write_json"):
-            bridge_payload = client.write_result_selection_payload({
-                "MethodName": "Selection",
-                "OutputType": "Selected Ultimate",
-                "OriginLength": 12,
-                "DataPath": "unused.json",
-            })
 
         node = REPO_ROOT / "frontend" / "node-portable" / "node.exe"
         contract_uri = (
@@ -161,16 +146,15 @@ class ResultSelectionCrossProducerContractTests(unittest.TestCase):
             require_complete_basis=True,
         )
 
-        self.assertEqual(bridge_payload, migration_payload)
         self.assertEqual(frontend_payload, migration_payload)
         self.assertEqual(backend_payload, migration_payload)
-        self.assertEqual(bridge_payload["json_format"], "arcrho-result-selection-v4")
+        self.assertEqual(migration_payload["json_format"], "arcrho-result-selection-v4")
         self.assertEqual(
-            bridge_payload["method_tab"]["ratio_basis_values"],
+            migration_payload["method_tab"]["ratio_basis_values"],
             [{"name": "Premium", "values": [1000.123457, -1000.123457]}],
         )
         self.assertEqual(
-            bridge_payload["method_tab"]["loaded_datasets"][0]["values"],
+            migration_payload["method_tab"]["loaded_datasets"][0]["values"],
             [1.234568, -1.234568],
         )
 

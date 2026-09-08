@@ -844,20 +844,11 @@ class BridgeRequestHandler(FileSystemEventHandler):
                 request["MethodName"] = normalize_method_name(request.get("MethodName", ""))
                 self._validate_request(request)
                 self.client.write_dfm_payload(request)
-            elif function_name == "ResultSelection":
-                request["MethodName"] = str(request.get("MethodName", "")).strip()
-                self._validate_request(request)
-                self.client.write_result_selection_payload(request)
             elif function_name == "SyncDFM":
                 request["MethodName"] = normalize_method_name(request.get("MethodName", ""))
                 self._validate_request(request)
                 self._validate_sync_dfm_request(request)
                 self.client.write_sync_dfm_payload(request)
-            elif function_name == "SyncResultSelection":
-                request["MethodName"] = str(request.get("MethodName", "")).strip()
-                self._validate_request(request)
-                self._validate_sync_result_selection_request(request)
-                self.client.write_sync_result_selection_payload(request)
             else:
                 self.client.write_error(request, f"Invalid function name: {request.get('Function', '')}")
         except Exception as exc:
@@ -1134,9 +1125,6 @@ class BridgeRequestHandler(FileSystemEventHandler):
 
     def _validate_sync_dfm_request(self, request):
         self._validate_sync_method_request(request, "SyncDFM")
-
-    def _validate_sync_result_selection_request(self, request):
-        self._validate_sync_method_request(request, "SyncResultSelection")
 
     def _validate_sync_method_request(self, request, function_name):
         missing = [

@@ -18,7 +18,6 @@ No new browser-facing route. This existing route selects the transport per reque
 | `POST /dfm/rpc-bridge/keep-local` | `dfm_rpc_bridge_keep_local` | `dfm_rpc_bridge_service.hosted_keep_local` |
 | `POST /dfm/rpc-bridge/cleanup` | `dfm_rpc_bridge_cleanup` | `dfm_rpc_bridge_service.hosted_cleanup_tmp` |
 | `POST /dfm/rpc-bridge/update-remote` | `dfm_rpc_bridge_update_remote` | `dfm_rpc_bridge_service.hosted_update_remote` |
-| the four `/result-selection/rpc-bridge/*` equivalents | `result_selection_rpc_bridge_*` | `result_selection_rpc_bridge_service.hosted_*` |
 | (no route; the ResQ sync and export macros call `run_workspace_mutation` directly through `arcrho_api.resq_sync_queue.submit_sync_request`) | `resq_sync_request_publish` | `resq_sync_queue_service.publish_resq_sync_request` |
 | (no route; the two ResQ import macros call `run_workspace_mutation` directly through `arcrho_api.resq_import_backup.back_up_reserving_class`) | `resq_import_backup` | `resq_import_backup_service.back_up_reserving_class_for_import` |
 

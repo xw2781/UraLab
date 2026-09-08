@@ -16,7 +16,6 @@ for path in (FRONTEND_ROOT, PYTHON_API_SRC, SERVER_COMPONENTS_SRC):
 
 from app_server.helpers import parse_method_last_modified_timestamp
 from app_server.services import dfm_rpc_bridge_service
-from app_server.services import result_selection_rpc_bridge_service
 
 
 def _resq_wall_clock_text(moment: datetime) -> str:
@@ -94,13 +93,6 @@ class RpcBridgeComparisonTimezoneTests(unittest.TestCase):
             _meta(_resq_wall_clock_text(self.local_save)),
         )
         self.assertEqual(state, "local_latest")
-
-    def test_result_selection_compare_state_follows_real_wall_clock_order(self) -> None:
-        state = result_selection_rpc_bridge_service._compare_state(
-            _meta(_arcrho_save_text(self.local_save)),
-            _meta(_resq_wall_clock_text(self.remote_save)),
-        )
-        self.assertEqual(state, "remote_latest")
 
     def test_matching_migrated_wall_clock_values_stay_in_sync(self) -> None:
         raw = _resq_wall_clock_text(self.local_save)

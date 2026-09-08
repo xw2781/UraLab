@@ -53,10 +53,7 @@ test("dataset sidecars are the only persisted notes owner", async () => {
   assert.match(datasetService, /"notes": str\(payload\.get\("notes"\) or ""\)/u);
   assert.match(datasetService, /payload\["notes"\] = str\(notes/u);
 
-  const rpcSnapshots = (await Promise.all([
-    "frontend/app_server/services/dfm_rpc_bridge_service.py",
-    "frontend/app_server/services/result_selection_rpc_bridge_service.py",
-  ].map(read))).join("\n");
+  const rpcSnapshots = await read("frontend/app_server/services/dfm_rpc_bridge_service.py");
   assert.doesNotMatch(rpcSnapshots, /^\s*["']notes["']\s*:/mu);
 });
 

@@ -81,13 +81,6 @@ _DFM_RPC_BRIDGE_REQUIRED: tuple[str, ...] = (
     "development_length",
 )
 _DFM_RPC_BRIDGE_OPTIONAL: tuple[str, ...] = ("decimal_places", "timeout_sec")
-_RESULT_SELECTION_RPC_BRIDGE_REQUIRED: tuple[str, ...] = (
-    "project_name",
-    "reserving_class",
-    "method_name",
-    "origin_length",
-)
-_RESULT_SELECTION_RPC_BRIDGE_OPTIONAL: tuple[str, ...] = ("output_type", "timeout_sec")
 
 # A hosted mutation that waits for the Bridge holds a Gateway worker thread for
 # the duration, so the caller's budget is clamped into this range rather than
@@ -201,33 +194,6 @@ WORKSPACE_MUTATION_KINDS: dict[str, WorkspaceMutationKind] = {
         "hosted_update_remote",
         _DFM_RPC_BRIDGE_REQUIRED,
         _DFM_RPC_BRIDGE_OPTIONAL + ("rpc_server_write_confirmed",),
-    ),
-    # The Result Selection sync is the same exchange against its own request
-    # function and method files; the arguments differ because its route schema
-    # does.
-    "result_selection_rpc_bridge_sync": WorkspaceMutationKind(
-        "result_selection_rpc_bridge_service",
-        "hosted_send_sync_request",
-        _RESULT_SELECTION_RPC_BRIDGE_REQUIRED,
-        _RESULT_SELECTION_RPC_BRIDGE_OPTIONAL,
-    ),
-    "result_selection_rpc_bridge_cleanup": WorkspaceMutationKind(
-        "result_selection_rpc_bridge_service",
-        "hosted_cleanup_tmp",
-        _RESULT_SELECTION_RPC_BRIDGE_REQUIRED,
-        _RESULT_SELECTION_RPC_BRIDGE_OPTIONAL,
-    ),
-    "result_selection_rpc_bridge_keep_local": WorkspaceMutationKind(
-        "result_selection_rpc_bridge_service",
-        "hosted_keep_local",
-        _RESULT_SELECTION_RPC_BRIDGE_REQUIRED,
-        _RESULT_SELECTION_RPC_BRIDGE_OPTIONAL,
-    ),
-    "result_selection_rpc_bridge_update_remote": WorkspaceMutationKind(
-        "result_selection_rpc_bridge_service",
-        "hosted_update_remote",
-        _RESULT_SELECTION_RPC_BRIDGE_REQUIRED,
-        _RESULT_SELECTION_RPC_BRIDGE_OPTIONAL + ("rpc_server_write_confirmed",),
     ),
     # The Sync and Export Reserving Class with ResQ macros publish one request
     # file into the Bridge's sync queue. Hosted, that write lands on the

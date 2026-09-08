@@ -31,7 +31,6 @@ __all__ = [
     "field_mapping_service",
     "dfm_rpc_bridge_service",
     "dfm_service",
-    "result_selection_rpc_bridge_service",
     "result_selection_service",
     "project_user_preferences_service",
     "ui_automation_service",

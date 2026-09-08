@@ -1,0 +1,11 @@
+{
+  "type": "breaking",
+  "scope": "result selection",
+  "audience": "user",
+  "summary": "The Sync button is gone from a Result Selection window; comparing one against its ResQ counterpart is now done only by the Sync Reserving Class with ResQ macro.",
+  "details": [
+    "The button on the Result Selection tab bar, and the version-comparison window it opened, have been removed.",
+    "The macro already does the same comparison across a whole reserving class, in a form that reports what it found before anything is written.",
+    "Nothing about a saved Result Selection changes: the same figures, the same file, and the same behaviour everywhere else in the window."
+  ]
+}
