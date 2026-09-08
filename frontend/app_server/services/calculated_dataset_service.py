@@ -30,6 +30,7 @@ from app_server.services import (
     dataset_sidecar_status_service,
     dataset_types_service,
     file_read_cache,
+    precedent_cache_service,
     runtime_cache_provenance_service,
     user_identity_service,
 )
@@ -922,6 +923,41 @@ def _load_component_matrix(path: str) -> Tuple[np.ndarray, Dict[str, Any]]:
     return df.to_numpy(dtype="float64"), runtime_cache_provenance_service.file_fingerprint(path)
 
 
+def _component_at_target_shape(
+    project_name: str,
+    sidecar: Mapping[str, Any],
+    values: np.ndarray,
+    target_settings: Mapping[str, Any],
+) -> np.ndarray:
+    """Aggregate a hand-entered component to the shape the formula runs at.
+
+    A formula is evaluated at its output's own display shape, and a
+    hand-entered precedent may be stored finer than that: its CSV then holds a
+    column for every stored period, and every cell the coarse view does not
+    read is a cumulative 0. Rolling it up here is the same in-memory read the
+    methods' precedent resolver already does, so the formula sees the values
+    the Dataset window shows rather than the finer grid underneath them.
+    """
+
+    target_origin = int(target_settings.get("origin_length") or 12)
+    target_development = int(target_settings.get("development_length") or 12)
+    if (target_origin, target_development) == stored_lengths(sidecar):
+        return values
+    if precedent_cache_service.rollup_reason(sidecar, target_origin, target_development):
+        return values
+    rows = precedent_cache_service.rollup_rows(
+        project_name,
+        sidecar,
+        values.tolist(),
+        target_origin,
+        target_development,
+    )
+    return np.array(
+        [[np.nan if value is None else float(value) for value in row] for row in rows],
+        dtype="float64",
+    )
+
+
 def _existing_target_settings(project_name: str, reserving_class: str, dataset_name: str) -> Dict[str, Any]:
     sidecar_path = os.path.join(
         config.get_project_dataset_sidecar_dir(project_name, reserving_class),
@@ -1188,9 +1224,14 @@ def _load_components(
         except Exception as exc:
             errors.append(f"Failed to read dependency {component}: {exc}")
             continue
+        sidecar = item.get("sidecar") if isinstance(item.get("sidecar"), dict) else {}
+        try:
+            arr = _component_at_target_shape(project_name, sidecar, arr, target_settings)
+        except ValueError as exc:
+            errors.append(f"Failed to read dependency {component}: {exc}")
+            continue
         var = f"_d{index}"
         values[var] = arr
-        sidecar = item.get("sidecar") if isinstance(item.get("sidecar"), dict) else {}
         # Stored, not displayed: this records what was read from ``path``.
         stored_origin, stored_development = stored_lengths(sidecar)
         dependency_info.append({

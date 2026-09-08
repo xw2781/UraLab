@@ -277,8 +277,10 @@ class BerquistShermanRefreshTests(unittest.TestCase):
         self.write_workspace(saved_ultimate=[20, 20, 20], current_ultimate=[20, 20, 40])
         ultimate_path = self.sidecars / "Ultimate Counts.json"
         ultimate = self.read_json(ultimate_path)
-        # The stored shape is what the walk reads the CSV at: a window
-        # left on an annual view of quarterly data is still quarterly.
+        # Annual is a question about the grid the dataset is shown at, which is
+        # the shape the page tests before it will take a source: a quarterly
+        # vector is refused here for the same reason it is refused there.
+        ultimate["period_length"] = 3
         ultimate["stored_period_length"] = 3
         self.write_json(ultimate_path, ultimate)
 
@@ -289,6 +291,42 @@ class BerquistShermanRefreshTests(unittest.TestCase):
 
         self.assertFalse(report["ok"])
         self.assertIn("not an annual dataset", report["errors"][0]["reason"])
+
+    def test_a_source_stored_finer_than_its_annual_display_is_rolled_up(self) -> None:
+        self.write_workspace(saved_ultimate=[20, 20, 20], current_ultimate=[20, 20, 40])
+        paid_path = self.sidecars / "Paid.json"
+        paid = self.read_json(paid_path)
+        # The triangle is entered and shown annually but held one column per
+        # month, the shape an Excel-linked adjusted triangle is saved at. Its
+        # own file is rolled up to the annual grid rather than read as 36
+        # development periods of mostly cumulative zero.
+        paid["stored_development_length"] = 1
+        paid["csv_file"] = "Paid@12@1@cum@dev.csv"
+        self.write_json(paid_path, paid)
+        monthly = [
+            [None] * 36,
+            [None] * 36,
+            [None] * 36,
+        ]
+        for row_index, row in enumerate(PAID):
+            for column_index, value in enumerate(row):
+                # Development periods count back from the valuation date, so
+                # every row's annual figures sit in its own 12th, 24th and 36th
+                # month whatever calendar date that row started at.
+                monthly[row_index][11 + 12 * column_index] = value
+        (self.datasets / "Paid@12@1@cum@dev.csv").write_text(_csv(monthly, 36), encoding="utf-8")
+        (self.datasets / "Paid@12@12@cum@dev.csv").unlink()
+
+        with mock.patch.object(
+            berquist_sherman_service.dataset_service, "valuation_months", return_value=36
+        ), mock.patch.object(berquist_sherman_service, "_refresh_downstream_domains"):
+            report = berquist_sherman_service.refresh_dependents(
+                "Project", "Class", ["Ultimate Counts"], rebuild_index=False, finalize_method_review_status=False
+            )
+
+        self.assertTrue(report["ok"], report)
+        csv_text = (self.datasets / f"{OUTPUT}@12@12@cum@dev.csv").read_text(encoding="utf-8")
+        self.assertEqual(csv_text, berquist_sherman_output_csv_text(self.expected_output([20, 20, 40]), 3))
 
     def test_a_generated_sources_source_table_granularity_is_not_read_as_its_shape(self) -> None:
         self.write_workspace(saved_ultimate=[20, 20, 20], current_ultimate=[20, 20, 40])

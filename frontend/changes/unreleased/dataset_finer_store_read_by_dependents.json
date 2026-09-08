@@ -1,0 +1,10 @@
+{
+  "type": "fix",
+  "scope": "dataset",
+  "audience": "user",
+  "summary": "A dataset entered at annual periods but held at finer ones is now read as the annual triangle it shows, so its calculated and Berquist-Sherman dependents refresh instead of coming back empty or refusing the dataset.",
+  "details": [
+    "A formula that divides such a dataset by another one used to compare the finer grid against the coarser one and leave the result untouched or at zero.",
+    "A Berquist-Sherman method now decides 'annual' from the shape the dataset is shown at, the same test the page makes, and reads the annual view; a dataset shown at any other period is still refused."
+  ]
+}

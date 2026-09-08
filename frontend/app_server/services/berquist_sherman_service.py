@@ -68,7 +68,7 @@ from arcrho_api.berquist_sherman_contract import (
 )
 from arcrho_api.io import persisted_json_text
 from arcrho_api.sidecar_audit_contract import AUDIT_ACTION_AUTO_REFRESH, append_audit_entry
-from arcrho_api.sidecar_core_contract import finalize_sidecar
+from arcrho_api.sidecar_core_contract import display_lengths, finalize_sidecar, stored_lengths
 from arcrho_api.timestamps import utc_now_text
 
 from app_server import config
@@ -460,19 +460,6 @@ def _read_sidecars(
     return {name: cache.get(_key(name), {}) for name in unique}
 
 
-def _annual_or_raise(sidecar: Mapping[str, Any], keys: Iterable[str], name: str) -> None:
-    for key in keys:
-        raw = sidecar.get(key)
-        if raw is None or raw == "":
-            continue
-        try:
-            value = int(raw)
-        except (TypeError, ValueError):
-            continue
-        if value and value != BS_ANNUAL_PERIOD_LENGTH:
-            raise RuntimeError(f"{name} is not an annual dataset.")
-
-
 def _read_source_values(
     project_name: str,
     reserving_class: str,
@@ -484,10 +471,11 @@ def _read_source_values(
 ) -> List[Any]:
     """Load one source exactly as the page loads it through ``/dataset/cache/load``.
 
-    The page asks for the annual cumulative development cache and then applies
-    the Dataset Viewer mask with the annual staircase (triangles) or takes the
-    first numeric cell per row (vectors); the same two normalizers run here on
-    the same CSV, so the walk computes from the values the page would show.
+    The page asks for the source's display view of the annual cumulative
+    development cache and then applies the Dataset Viewer mask with the annual
+    staircase (triangles) or takes the first numeric cell per row (vectors);
+    the same two normalizers run here on the same CSV, so the walk computes
+    from the values the page would show.
     """
 
     label = _ROLE_LABELS.get(role, role)
@@ -497,33 +485,48 @@ def _read_source_values(
     if sidecar_format != data_format.lower():
         raise RuntimeError(f"{label} must be an annual {data_format.lower()} dataset: {name}")
     generated = _clean(sidecar.get("source_kind")).lower() == "engine"
+    needs_rollup = False
     if not generated:
-        # Stored, not displayed: the CSV chosen below is the sidecar's own, so
-        # it is that file that has to hold annual periods. A generated dataset
-        # is the one kind this cannot be asked of, because its stored pair
-        # records how fine the project's source table is rather than the shape
-        # of the cache beside it; that one is answered below instead.
-        if data_format == "Vector":
-            _annual_or_raise(sidecar, ("stored_period_length",), name)
-        else:
-            _annual_or_raise(sidecar, ("stored_origin_length", "stored_development_length"), name)
+        # Displayed, then stored. Annual is a question about the grid B&S uses,
+        # which is the one the dataset is shown at, and that is the shape the
+        # page tests before it will take a source at all. A hand-entered
+        # dataset may hold finer periods underneath that grid; its own CSV is
+        # then aggregated to it in memory, the read the methods' precedent
+        # resolver and the Dataset window already make of the same file. A
+        # generated dataset is the one kind whose stored pair cannot be asked
+        # this, because it records how fine the project's source table is
+        # rather than the shape of the cache beside it; that one is answered
+        # below instead.
+        display = display_lengths(sidecar)
+        stored = stored_lengths(sidecar)
+        annual = (BS_ANNUAL_PERIOD_LENGTH, BS_ANNUAL_PERIOD_LENGTH)
+        if any(display) and display != annual:
+            raise RuntimeError(f"{name} is not an annual dataset.")
+        if all(stored) and stored != annual:
+            if precedent_cache_service.rollup_reason(
+                sidecar, BS_ANNUAL_PERIOD_LENGTH, BS_ANNUAL_PERIOD_LENGTH
+            ):
+                raise RuntimeError(f"{name} is not an annual dataset.")
+            needs_rollup = True
     data_dir = config.get_project_dataset_cache_dir(project_name, reserving_class)
     candidates: List[str] = []
     recorded = os.path.basename(_clean(sidecar.get("csv_file")))
     # A generated dataset's own cache may sit at any period, so it is the annual
     # name below that names the file to read; every other kind holds its values
-    # only in the CSV it names, which the check above has proved annual.
+    # only in the CSV it names, and a finer one is rolled up from exactly that
+    # file rather than from a coarser copy that may sit beside it.
     if recorded and not generated:
         candidates.append(os.path.join(data_dir, recorded))
-    cache_name = build_dataset_cache_file_name(
-        name,
-        data_format,
-        BS_ANNUAL_PERIOD_LENGTH,
-        BS_ANNUAL_PERIOD_LENGTH,
-        True,
-        False,
-    )
-    candidates.append(os.path.join(data_dir, f"{cache_name}.csv"))
+    if not needs_rollup:
+        cache_name = build_dataset_cache_file_name(
+            name,
+            data_format,
+            BS_ANNUAL_PERIOD_LENGTH,
+            BS_ANNUAL_PERIOD_LENGTH,
+            True,
+            False,
+        )
+        candidates.append(os.path.join(data_dir, f"{cache_name}.csv"))
     csv_path = next((path for path in candidates if os.path.isfile(path)), "")
     if not csv_path and generated:
         # The Engine rebuilds one of its own datasets at any period from the
@@ -552,6 +555,17 @@ def _read_source_values(
         raise RuntimeError(f"B&S source CSV is invalid: {name}: {exc}") from exc
     frame = frame.where(pd.notnull(frame), None)
     values = frame.values.tolist()
+    if needs_rollup:
+        try:
+            values = precedent_cache_service.rollup_rows(
+                project_name,
+                sidecar,
+                values,
+                BS_ANNUAL_PERIOD_LENGTH,
+                BS_ANNUAL_PERIOD_LENGTH,
+            )
+        except ValueError as exc:
+            raise RuntimeError(f"{name} could not be read at annual periods: {exc}") from exc
     if data_format == "Vector":
         return normalize_vector(values)
     mask = [[value is not None for value in row] for row in values]

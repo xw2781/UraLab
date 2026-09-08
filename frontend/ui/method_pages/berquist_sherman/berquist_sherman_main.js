@@ -2085,6 +2085,11 @@ async function loadDatasetPayload(datasetName) {
     development_length: ANNUAL_PERIOD_LENGTH,
     cumulative: true,
     calendar: false,
+    // A hand-entered source may be held at finer periods than the annual grid
+    // it is shown at, and B&S wants the grid: asking for the display shape
+    // rolls that file up on the way out, so a source stored monthly reads as
+    // the annual triangle the Dataset window shows rather than as its store.
+    at_display_shape: true,
   };
   if (record?.csvFile) body.csv_file = record.csvFile;
   const response = await fetch("/dataset/cache/load", {
