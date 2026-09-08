@@ -10,6 +10,7 @@ mirror (``ui/shared/dataset/dataset_formula.js``) implements token for token.
 
 from __future__ import annotations
 
+import json
 import sys
 import unittest
 from pathlib import Path
@@ -20,13 +21,18 @@ from arcrho_api.dataset_link_contract import (  # noqa: E402
     DatasetLinkError,
     canonical_dataset_formula,
     canonical_internal_reference,
+    compact_sidecar_links,
     evaluate_dataset_formula,
+    excel_column_name,
+    expand_sidecar_links,
     formula_has_excel_reference,
     formula_reference_tokens,
     link_precedent_names,
     parse_dataset_formula_tree,
     tokenize_dataset_formula,
 )
+from arcrho_api.io import persisted_json_text  # noqa: E402
+from arcrho_api.sidecar_core_contract import finalize_sidecar  # noqa: E402
 
 
 class CanonicalTextTests(unittest.TestCase):
@@ -140,6 +146,112 @@ class EvaluationTests(unittest.TestCase):
     def test_reference_tokens_deduplicate_in_formula_order(self):
         tokens = formula_reference_tokens("=[a][1] + [b][1] + [a][1]")
         self.assertEqual([token["canonical"] for token in tokens], ["[a][1]", "[b][1]"])
+
+
+class TargetCellBlockTests(unittest.TestCase):
+    """The on-disk block form of a link's cells, and its round trip."""
+
+    @staticmethod
+    def _triangle_link(rows: int, columns: int) -> dict:
+        """A link filling a triangle from an Excel range anchored at B7."""
+
+        return {
+            "reference": "='C:\\Book\\[Src.xlsx]Sheet1'!B7:DP126",
+            "target_cells": [
+                {
+                    "row": row,
+                    "column": column,
+                    "source_cell": f"{excel_column_name(column + 1)}{7 + row}",
+                }
+                for row in range(rows)
+                for column in range(columns - row)
+            ],
+        }
+
+    def test_a_rectangle_becomes_one_block(self):
+        link = {
+            "reference": "='C:\\Book\\[Src.xlsx]Sheet1'!B7:D8",
+            "target_cells": [
+                {"row": row, "column": column, "source_cell": f"{excel_column_name(column + 1)}{7 + row}"}
+                for row in range(2)
+                for column in range(3)
+            ],
+        }
+        compact = compact_sidecar_links({"external_links": [link]})
+        self.assertEqual(compact["external_links"][0]["target_cells"], [[0, 0, 2, 3, "B7"]])
+        self.assertEqual(expand_sidecar_links(compact), {"external_links": [link]})
+
+    def test_a_triangle_becomes_one_block_per_row_and_round_trips(self):
+        payload = {"external_links": [self._triangle_link(4, 4)]}
+        compact = compact_sidecar_links({"external_links": [self._triangle_link(4, 4)]})
+        self.assertEqual(
+            compact["external_links"][0]["target_cells"],
+            [[0, 0, 1, 4, "B7"], [1, 0, 1, 3, "B8"], [2, 0, 1, 2, "B9"], [3, 0, 1, 1, "B10"]],
+        )
+        self.assertEqual(expand_sidecar_links(compact), payload)
+
+    def test_cells_that_do_not_translate_stay_their_own_blocks(self):
+        link = {
+            "reference": "='C:\\Book\\[Src.xlsx]Sheet1'!A1:Z99",
+            "target_cells": [
+                {"row": 0, "column": 0, "source_cell": "A1"},
+                {"row": 0, "column": 1, "source_cell": "Z9"},
+            ],
+        }
+        compact = compact_sidecar_links({"external_links": [link]})
+        self.assertEqual(
+            compact["external_links"][0]["target_cells"],
+            [[0, 0, 1, 1, "A1"], [0, 1, 1, 1, "Z9"]],
+        )
+        self.assertEqual(expand_sidecar_links(compact), {"external_links": [link]})
+
+    def test_internal_and_formula_links_carry_a_numeric_source_pair(self):
+        payload = {
+            "internal_links": [{
+                "reference": "=[Paid][1:3, 1:2]",
+                "target_cells": [
+                    {"row": row, "column": column, "source_row": row + 4, "source_column": column + 9}
+                    for row in range(3)
+                    for column in range(2)
+                ],
+            }],
+            "formula_links": [{
+                "formula": "=[Paid][1:2] * 2",
+                "target_cells": [
+                    {"row": 0, "column": 0, "result_row": 0, "result_column": 0},
+                    {"row": 5, "column": 7, "result_row": 1, "result_column": 0},
+                ],
+            }],
+        }
+        compact = compact_sidecar_links(json.loads(json.dumps(payload)))
+        self.assertEqual(compact["internal_links"][0]["target_cells"], [[0, 0, 3, 2, 4, 9]])
+        self.assertEqual(
+            compact["formula_links"][0]["target_cells"],
+            [[0, 0, 1, 1, 0, 0], [5, 7, 1, 1, 1, 0]],
+        )
+        self.assertEqual(expand_sidecar_links(compact), payload)
+
+    def test_the_write_funnel_stores_blocks_and_is_idempotent(self):
+        payload = {"dataset_name": "Paid", "external_links": [self._triangle_link(3, 3)]}
+        stored = finalize_sidecar(payload)
+        self.assertEqual(
+            stored["external_links"][0]["target_cells"],
+            [[0, 0, 1, 3, "B7"], [1, 0, 1, 2, "B8"], [2, 0, 1, 1, "B9"]],
+        )
+        self.assertEqual(finalize_sidecar(stored), stored)
+
+    def test_a_block_is_one_line_of_the_persisted_text(self):
+        text = persisted_json_text(compact_sidecar_links({"external_links": [self._triangle_link(40, 40)]}))
+        per_cell = persisted_json_text({"external_links": [self._triangle_link(40, 40)]})
+        self.assertIn('[0, 0, 1, 40, "B7"],', [line.strip() for line in text.splitlines()])
+        # 40 blocks against 820 cells: the point of the whole shape.
+        self.assertEqual(sum(1 for line in text.splitlines() if line.strip().startswith("[0")), 1)
+        self.assertLess(len(text) * 20, len(per_cell))
+
+    def test_a_reader_refuses_the_retired_per_cell_shape(self):
+        with self.assertRaises(DatasetLinkError) as ctx:
+            expand_sidecar_links({"external_links": [self._triangle_link(2, 2)]})
+        self.assertIn("migrate_dataset_link_blocks.py", str(ctx.exception))
 
 
 if __name__ == "__main__":

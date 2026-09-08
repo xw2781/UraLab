@@ -50,6 +50,7 @@ from __future__ import annotations
 import re
 from typing import Any, Iterable, Mapping
 
+from .dataset_link_contract import compact_sidecar_links
 from .sidecar_audit_contract import normalize_audit_log
 
 
@@ -374,7 +375,9 @@ def finalize_sidecar(payload: Mapping[str, Any]) -> dict[str, Any]:
     the way through, so a writer that assembles its payload by hand -- and so
     never runs a builder's :func:`validate_sidecar_core` -- cannot land bare
     names in ``precedents`` while the far side of the same link carries
-    entries in ``dependents``.
+    entries in ``dependents``. Cell links are put into their on-disk block
+    form here for the same reason: every producer writes the one shape, and
+    ``dataset_link_contract.expand_sidecar_links`` is what a reader applies.
     """
 
     ordered: dict[str, Any] = {SIDECAR_JSON_FORMAT_FIELD: DATASET_SIDECAR_JSON_FORMAT}
@@ -385,7 +388,7 @@ def finalize_sidecar(payload: Mapping[str, Any]) -> dict[str, Any]:
             value = dependency_entries(value)
         ordered[key] = value
     ordered[SIDECAR_AUDIT_LOG_FIELD] = normalize_audit_log(payload.get(SIDECAR_AUDIT_LOG_FIELD))
-    return ordered
+    return compact_sidecar_links(ordered)
 
 
 # Kept for callers that only need the ordering half of finalize_sidecar.

@@ -24,7 +24,9 @@ for path in (FRONTEND_ROOT, PYTHON_API_SRC):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
 
+from arcrho_api.dataset_link_contract import compact_sidecar_links
 from arcrho_api.dfm_contract import method_revisions, recalculate_dfm_method
+from arcrho_api.io import persisted_json_text
 from app_server.services import excel_link_service
 from dependent_propagation_workspace_stub import IsolatedPropagationWorkspace
 
@@ -166,7 +168,9 @@ class ExcelLinkFixture(unittest.TestCase):
         workbook.save(str(path))
 
     def write_json(self, path: Path, payload: dict) -> None:
-        path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+        # Through the canonical writers, so a fixture lands in the on-disk
+        # shape a real save writes -- cell links included.
+        path.write_text(persisted_json_text(compact_sidecar_links(payload)), encoding="utf-8")
 
     def linked_sidecar(self, name: str = "Manual Paid") -> dict:
         return {

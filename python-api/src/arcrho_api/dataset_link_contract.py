@@ -518,3 +518,181 @@ def evaluate_dataset_formula(
         return _combine(visit(node["left"]), visit(node["right"]), node["operator"])
 
     return visit(tree)
+
+
+# ── Target-cell blocks (the on-disk shape of a link's cells) ───────────────────
+#
+# A link names every grid cell it fills. In memory each of those cells is its
+# own record -- ``{"row", "column", "source_cell"}`` for an Excel link, and the
+# numeric source or result pair for the other two kinds -- because every reader
+# works cell by cell. Written out one record per cell, a 120x116 Excel range
+# costs 6,786 records and roughly 650 KB, which is a file no reviewer can read
+# and a read every dataset open pays for over the network.
+#
+# On disk a link's cells are therefore blocks. A block is one rectangle of the
+# grid whose source moves with it cell for cell, written as the flat list::
+#
+#     [row, column, rows, columns, *source]
+#
+# ``row``/``column`` are the block's top-left target cell, ``rows``/``columns``
+# its extent, and the source tail is the top-left source: one Excel address for
+# an external link, and a row/column pair for the other two. The cell ``i``
+# rows and ``j`` columns into the block reads the source ``i`` rows and ``j``
+# columns into the source. The range above becomes 116 blocks on 116 lines and
+# under 9 KB, because :func:`format_json_for_save` renders a list of lists one
+# row per line.
+#
+# ``sidecar_core_contract``'s write funnel applies :func:`compact_sidecar_links`
+# and every sidecar reader that consumes link cells applies
+# :func:`expand_sidecar_links`, so the block form exists only in the file: the
+# HTTP payloads, the browser modules, and every service still work cell by cell.
+
+#: Sidecar field -> the source keys each of its target cells carries, in the
+#: order the block's source tail writes them.
+LINK_TARGET_FIELDS: Dict[str, tuple] = {
+    "external_links": ("source_cell",),
+    "internal_links": ("source_row", "source_column"),
+    "formula_links": ("result_row", "result_column"),
+}
+
+_EXCEL_ADDRESS_RE = re.compile(r"([A-Z]+)([1-9][0-9]*)")
+
+
+def excel_column_index(letters: Any) -> int:
+    """Zero-based column index of an Excel column name (``A`` -> 0)."""
+
+    index = 0
+    for character in str(letters or "").upper():
+        index = index * 26 + (ord(character) - 64)
+    return index - 1
+
+
+def excel_column_name(index: int) -> str:
+    """Excel column name of a zero-based column index (0 -> ``A``)."""
+
+    name = ""
+    value = int(index) + 1
+    while value > 0:
+        value, remainder = divmod(value - 1, 26)
+        name = chr(65 + remainder) + name
+    return name
+
+
+def _block_source(target: Mapping[str, Any], field: str) -> tuple:
+    """The ``(row, column)`` a target cell reads, whatever the link kind."""
+
+    if field == "external_links":
+        match = _EXCEL_ADDRESS_RE.fullmatch(_clean_text(target.get("source_cell")).replace("$", "").upper())
+        if not match:
+            raise DatasetLinkError(
+                "An external link target cell needs a valid Excel source_cell before it can be stored.",
+            )
+        return int(match.group(2)) - 1, excel_column_index(match.group(1))
+    keys = LINK_TARGET_FIELDS[field]
+    return int(target[keys[0]]), int(target[keys[1]])
+
+
+def _source_tail(row: int, column: int, field: str) -> list:
+    if field == "external_links":
+        return [f"{excel_column_name(column)}{row + 1}"]
+    return [row, column]
+
+
+def compact_target_cells(targets: Iterable[Any], field: str) -> List[Any]:
+    """Group one link's target cells into the blocks that go on disk.
+
+    Cells already written as blocks pass through, so the projection is
+    idempotent and a payload read from disk can be written back unchanged.
+    """
+
+    cells: Dict[tuple, tuple] = {}
+    blocks: List[Any] = []
+    for target in targets or []:
+        if isinstance(target, list):
+            blocks.append(list(target))
+            continue
+        if hasattr(target, "model_dump"):
+            target = target.model_dump()
+        cells[(int(target["row"]), int(target["column"]))] = _block_source(target, field)
+    if blocks and cells:
+        raise DatasetLinkError("A link's target cells must be all blocks or all single cells.")
+    if blocks:
+        return blocks
+
+    remaining = dict(cells)
+    for key in sorted(cells):
+        if key not in remaining:
+            continue
+        row, column = key
+        source_row, source_column = remaining.pop(key)
+        columns = 1
+        while remaining.get((row, column + columns)) == (source_row, source_column + columns):
+            remaining.pop((row, column + columns))
+            columns += 1
+        rows = 1
+        while all(
+            remaining.get((row + rows, column + offset)) == (source_row + rows, source_column + offset)
+            for offset in range(columns)
+        ):
+            for offset in range(columns):
+                remaining.pop((row + rows, column + offset))
+            rows += 1
+        blocks.append([row, column, rows, columns] + _source_tail(source_row, source_column, field))
+    return blocks
+
+
+def expand_target_cells(blocks: Iterable[Any], field: str) -> List[Dict[str, Any]]:
+    """Return one link's stored blocks as the cell records every reader uses."""
+
+    keys = LINK_TARGET_FIELDS[field]
+    targets: List[Dict[str, Any]] = []
+    for block in blocks or []:
+        if not isinstance(block, list):
+            raise DatasetLinkError(
+                "This dataset's cell links are stored one entry per cell, which this build no "
+                "longer reads. Convert the workspace with tools/migrate_dataset_link_blocks.py.",
+            )
+        row, column, rows, columns = (int(value) for value in block[:4])
+        source_row, source_column = (
+            _block_source({keys[0]: block[4]}, field)
+            if field == "external_links"
+            else (int(block[4]), int(block[5]))
+        )
+        for offset_row in range(rows):
+            for offset_column in range(columns):
+                target = {"row": row + offset_row, "column": column + offset_column}
+                target.update(
+                    dict(zip(keys, _source_tail(source_row + offset_row, source_column + offset_column, field)))
+                )
+                targets.append(target)
+    return targets
+
+
+def _map_sidecar_links(payload: Any, convert: Callable[[Any, str], List[Any]]) -> Any:
+    """Rewrite every link field of *payload* in place through *convert*."""
+
+    if not isinstance(payload, dict):
+        return payload
+    for field in LINK_TARGET_FIELDS:
+        links = payload.get(field)
+        if not isinstance(links, list) or not links:
+            continue
+        payload[field] = [
+            {**link, "target_cells": convert(link.get("target_cells"), field)}
+            if isinstance(link, Mapping) and link.get("target_cells") is not None
+            else link
+            for link in links
+        ]
+    return payload
+
+
+def compact_sidecar_links(payload: Any) -> Any:
+    """Put a sidecar payload's link cells into their on-disk block form."""
+
+    return _map_sidecar_links(payload, compact_target_cells)
+
+
+def expand_sidecar_links(payload: Any) -> Any:
+    """Put a sidecar payload's stored link blocks back into cell records."""
+
+    return _map_sidecar_links(payload, expand_target_cells)

@@ -8,6 +8,8 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+from arcrho_api.dataset_link_contract import expand_sidecar_links
+
 
 _TMP_ROOT = Path(__file__).resolve().parent / "logs" / "tmp"
 _MIGRATION_PATH = Path(__file__).resolve().parents[1] / "migration" / "resq_data_migration.py"
@@ -306,15 +308,21 @@ class ResqDataMigrationGraphTests(unittest.TestCase):
 
         sidecar = json.loads((self.sidecars_dir / "Vector C.json").read_text(encoding="utf-8"))
         self.assertEqual(sidecar["source_kind"], "input")
+        # The two cells are one block on disk: [row, column, rows, columns,
+        # result_row, result_column].
         self.assertEqual(
             sidecar["formula_links"],
             [{
                 "formula": "=[Vector A][1:2] * [Vector B][1:2] / 1000",
-                "target_cells": [
-                    {"row": 0, "column": 0, "result_row": 0, "result_column": 0},
-                    {"row": 1, "column": 0, "result_row": 1, "result_column": 0},
-                ],
+                "target_cells": [[0, 0, 2, 1, 0, 0]],
             }],
+        )
+        self.assertEqual(
+            expand_sidecar_links(sidecar)["formula_links"][0]["target_cells"],
+            [
+                {"row": 0, "column": 0, "result_row": 0, "result_column": 0},
+                {"row": 1, "column": 0, "result_row": 1, "result_column": 0},
+            ],
         )
         # A vector has one axis and it is the stored one, so no linked length
         # is carried: a link can only ever be written at the period the file

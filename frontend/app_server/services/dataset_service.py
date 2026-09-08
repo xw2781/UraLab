@@ -26,6 +26,11 @@ from arcrho_api.sidecar_audit_contract import (
     append_audit_entry,
     normalize_audit_log,
 )
+from arcrho_api.dataset_link_contract import (
+    excel_column_index,
+    excel_column_name,
+    expand_sidecar_links,
+)
 from arcrho_api.sidecar_core_contract import (
     SIDECAR_LINKED_DEVELOPMENT_FIELD,
     display_lengths,
@@ -474,20 +479,6 @@ def _normalize_dataset_external_links(
             raise HTTPException(400, detail)
         return False
 
-    def column_index(column: str) -> int:
-        result = 0
-        for character in column.upper():
-            result = result * 26 + (ord(character) - 64)
-        return result - 1
-
-    def column_name(index: int) -> str:
-        result = ""
-        value = index + 1
-        while value > 0:
-            value, remainder = divmod(value - 1, 26)
-            result = chr(65 + remainder) + result
-        return result
-
     def reference_bounds(reference: str) -> Tuple[int, int, int, int] | None:
         match = re.fullmatch(
             r"\s*=?\s*(?:'((?:[^']|'')*)'|([^!]+))!\s*"
@@ -508,9 +499,9 @@ def _normalize_dataset_external_links(
             or close_bracket >= len(source) - 1
         ):
             return None
-        start_column = column_index(match.group(3))
+        start_column = excel_column_index(match.group(3))
         start_row = int(match.group(4)) - 1
-        end_column = column_index(match.group(5) or match.group(3))
+        end_column = excel_column_index(match.group(5) or match.group(3))
         end_row = int(match.group(6) or match.group(4)) - 1
         return (
             min(start_row, end_row),
@@ -526,7 +517,7 @@ def _normalize_dataset_external_links(
         match = re.fullmatch(r"([A-Z]+)([1-9][0-9]*)", normalized)
         if not match:
             return None
-        return normalized, int(match.group(2)) - 1, column_index(match.group(1))
+        return normalized, int(match.group(2)) - 1, excel_column_index(match.group(1))
 
     for raw_link in value:
         if hasattr(raw_link, "model_dump"):
@@ -646,7 +637,7 @@ def _normalize_dataset_external_links(
                 )
                 continue
             source_cells = (
-                f"{column_name(source_column)}{source_row + 1}"
+                f"{excel_column_name(source_column)}{source_row + 1}"
                 for source_row in range(row0, row1 + 1)
                 for source_column in range(column0, column1 + 1)
             )
@@ -1637,7 +1628,7 @@ def _read_dataset_sidecar(path: str) -> Dict[str, Any]:
         raise HTTPException(500, f"Failed to read dataset sidecar: {str(err)}")
     except json.JSONDecodeError as err:
         raise HTTPException(500, f"Invalid dataset sidecar JSON format: {str(err)}")
-    return payload if isinstance(payload, dict) else {}
+    return expand_sidecar_links(payload) if isinstance(payload, dict) else {}
 
 
 def _dataset_type_calculation_map(project_name: str) -> Dict[str, tuple[bool, str]]:

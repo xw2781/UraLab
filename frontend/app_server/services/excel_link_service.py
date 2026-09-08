@@ -43,6 +43,11 @@ from arcrho_api.dfm_contract import (
     normalize_dfm_method,
     _evaluate_internal_formula,
 )
+from arcrho_api.dataset_link_contract import (
+    excel_column_index,
+    excel_column_name,
+    expand_sidecar_links,
+)
 from arcrho_api.sidecar_core_contract import display_lengths, stored_lengths
 from app_server import config
 from app_server.services import (
@@ -202,7 +207,7 @@ _DFM_METHOD_FILE_RE = re.compile(r"DFM@.+\.json", re.IGNORECASE)
 def _read_json_file(path: str) -> Dict[str, Any]:
     with open(path, "r", encoding="utf-8") as handle:
         payload = json.load(handle)
-    return payload if isinstance(payload, dict) else {}
+    return expand_sidecar_links(payload) if isinstance(payload, dict) else {}
 
 
 def _read_json_files(paths: Iterable[str]) -> List[Tuple[str, Dict[str, Any] | None, str]]:
@@ -438,19 +443,7 @@ def _parse_cell_address(value: Any) -> Tuple[int, int] | None:
     match = _CELL_ADDRESS_RE.fullmatch(_clean(value).replace("$", "").upper())
     if not match:
         return None
-    column = 0
-    for character in match.group(1):
-        column = column * 26 + (ord(character) - 64)
-    return int(match.group(2)) - 1, column - 1
-
-
-def _column_name(index: int) -> str:
-    name = ""
-    value = index + 1
-    while value > 0:
-        value, remainder = divmod(value - 1, 26)
-        name = chr(65 + remainder) + name
-    return name
+    return int(match.group(2)) - 1, excel_column_index(match.group(1))
 
 
 def _cell_key(book_path: str, sheet: str, cell: Any) -> Tuple[str, str, str]:
@@ -519,7 +512,7 @@ def _standalone_range(text: Any) -> Dict[str, Any] | None:
 
 def _range_source_cells(range_info: Mapping[str, Any]) -> List[str]:
     return [
-        f"{_column_name(range_info['col0'] + col_offset)}{range_info['row0'] + row_offset + 1}"
+        f"{excel_column_name(range_info['col0'] + col_offset)}{range_info['row0'] + row_offset + 1}"
         for row_offset in range(range_info["row_count"])
         for col_offset in range(range_info["col_count"])
     ]

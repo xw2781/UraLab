@@ -38,6 +38,8 @@ from fastapi import HTTPException
 from arcrho_api.dataset_link_contract import (
     DatasetLinkError,
     evaluate_dataset_formula,
+    excel_column_index,
+    excel_column_name,
     parse_dataset_formula_tree,
     parse_internal_reference,
     tokenize_dataset_formula,
@@ -62,22 +64,6 @@ def _clean_text(value: Any) -> str:
     return str(value if value is not None else "").strip()
 
 
-def _column_index(letters: str) -> int:
-    column = 0
-    for character in letters.upper():
-        column = column * 26 + (ord(character) - 64)
-    return column - 1
-
-
-def _column_name(index: int) -> str:
-    name = ""
-    value = index + 1
-    while value > 0:
-        value, remainder = divmod(value - 1, 26)
-        name = chr(65 + remainder) + name
-    return name
-
-
 def _excel_range(token_text: str) -> Dict[str, Any] | None:
     """Book path, sheet, and row-major cell addresses of one canonical Excel token."""
 
@@ -92,13 +78,13 @@ def _excel_range(token_text: str) -> Dict[str, Any] | None:
     book_path = source[:open_bracket] + source[open_bracket + 1 : close_bracket]
     sheet = source[close_bracket + 1 :]
     start_row = int(match.group(3)) - 1
-    start_col = _column_index(match.group(2))
+    start_col = excel_column_index(match.group(2))
     end_row = int(match.group(5)) - 1 if match.group(4) else start_row
-    end_col = _column_index(match.group(4)) if match.group(4) else start_col
+    end_col = excel_column_index(match.group(4)) if match.group(4) else start_col
     row_first, row_last = sorted((start_row, end_row))
     col_first, col_last = sorted((start_col, end_col))
     cells = [
-        f"{_column_name(col)}{row + 1}"
+        f"{excel_column_name(col)}{row + 1}"
         for row in range(row_first, row_last + 1)
         for col in range(col_first, col_last + 1)
     ]

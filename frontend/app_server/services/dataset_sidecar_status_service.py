@@ -11,6 +11,7 @@ from contextlib import ExitStack
 from datetime import datetime, timezone
 from typing import Any, Dict, Iterable, List, Set
 
+from arcrho_api.dataset_link_contract import expand_sidecar_links
 from arcrho_api.io import persisted_json_text
 from arcrho_api.sidecar_core_contract import dependency_entries, dependency_names, finalize_sidecar
 from arcrho_api.timestamps import utc_now_text
@@ -201,9 +202,9 @@ def read_sidecar(path: str) -> Dict[str, Any]:
     try:
         with open(path, "r", encoding="utf-8") as fh:
             payload = json.load(fh)
+        return expand_sidecar_links(payload) if isinstance(payload, dict) else {}
     except Exception:
         return {}
-    return payload if isinstance(payload, dict) else {}
 
 
 def read_sidecar_strict(path: str) -> Dict[str, Any]:
@@ -211,7 +212,7 @@ def read_sidecar_strict(path: str) -> Dict[str, Any]:
         payload = json.load(fh)
     if not isinstance(payload, dict):
         raise ValueError(f"Dataset sidecar must contain a JSON object: {os.path.basename(path)}")
-    return payload
+    return expand_sidecar_links(payload)
 
 
 def write_sidecar(path: str, payload: Dict[str, Any]) -> None:
