@@ -702,7 +702,7 @@ def _finite_float(value: Any) -> float | None:
 
 
 def _read_numeric_csv(path: str) -> np.ndarray:
-    df = pd.read_csv(path, header=None, dtype="float64", keep_default_na=True)
+    df = pd.read_csv(path, header=None, dtype="float64", keep_default_na=True, float_precision="round_trip")
     return df.to_numpy(dtype="float64")
 
 
@@ -919,7 +919,7 @@ def _target_paths(
 def _load_component_matrix(path: str) -> Tuple[np.ndarray, Dict[str, Any]]:
     """Read one component CSV and its content fingerprint (cache-miss loader)."""
 
-    df = pd.read_csv(path, header=None, dtype="float64", keep_default_na=True)
+    df = pd.read_csv(path, header=None, dtype="float64", keep_default_na=True, float_precision="round_trip")
     return df.to_numpy(dtype="float64"), runtime_cache_provenance_service.file_fingerprint(path)
 
 
