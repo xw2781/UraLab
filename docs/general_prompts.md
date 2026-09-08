@@ -44,13 +44,21 @@ server-components\deploy.bat
 
 & "C:\Program Files\Python310\python.exe" tools/create_reserve_review_input_datasets.py --project "NJ_Annual_Prod_2026 Q2-May Test" --quarter "2026Q2" --dry-run
 
-## Reconcile DFM triangles
+
+## Reconciliations
+
+### DFM triangles
 py -3.10 python-api/migration/validation/dfm_ratio_side_by_side_review.py
 
-## Reconcile Result Selections
+### Result Selections
 py -3.10 python-api/migration/validation/rs_dataset_side_by_side_review.py
 
-## Reconcile plain triangles and vectors (no method behind them)
+### Datasets (no method)
 py -3.10 python-api/migration/validation/dataset_side_by_side_review.py
+
 py -3.10 python-api/migration/validation/dataset_side_by_side_review.py --source-kind all --rc "Legacy\HOL"
+
+### Datasets + RS
+py -3.10 python-api/migration/validation/combined_side_by_side_review.py --rc "HPPREF\HO+DF\NJ\Legacy\HOL"
+
 
