@@ -306,31 +306,48 @@ class ValidatorTests(unittest.TestCase):
         )
         self.assertEqual(display_lengths({"data_format": "Triangle", "stored_origin_length": 1}), (0, 0))
 
-    def test_the_linked_shape_is_its_own_pair_and_defaults_to_the_display(self) -> None:
-        # The display a dataset's cell links were written against is recorded
-        # apart from the display it is shown at now; a sidecar that states none
-        # was saved with its links at the display it records.
+    def test_the_linked_shape_reads_its_origin_axis_from_the_store(self) -> None:
+        # A link can be entered only where the grid can be typed into, which is
+        # the origin period the file is held at: a coarser origin row is
+        # read-only and a finer one is refused. Only the development width can
+        # differ, so only it is recorded, and a triangle that states none was
+        # saved with its links at the display it records.
         self.assertEqual(
             linked_length_fields("Triangle", 1, 1),
-            {"linked_origin_length": 1, "linked_development_length": 1},
+            {"linked_development_length": 1},
         )
-        self.assertEqual(linked_length_fields("Vector", 3), {"linked_period_length": 3})
+        self.assertEqual(linked_length_fields("Vector", 3), {})
         self.assertEqual(
             linked_lengths({
                 "data_format": "Triangle",
                 "origin_length": 12,
                 "development_length": 12,
-                "linked_origin_length": 1,
+                "stored_origin_length": 1,
+                "stored_development_length": 1,
                 "linked_development_length": 1,
             }),
             (1, 1),
+        )
+        # The display moved to a yearly view long after the links were written
+        # on the monthly grid, and the file states no linked width. Reading the
+        # origin axis off that display would call the yearly view the links'
+        # own; the store says otherwise.
+        self.assertEqual(
+            linked_lengths({
+                "data_format": "Triangle",
+                "origin_length": 12,
+                "development_length": 12,
+                "stored_origin_length": 1,
+                "stored_development_length": 1,
+            }),
+            (1, 12),
         )
         self.assertEqual(
             linked_lengths({"data_format": "Triangle", "origin_length": 12, "development_length": 12}),
             (12, 12),
         )
         self.assertEqual(
-            linked_lengths({"data_format": "Vector", "period_length": 12, "linked_period_length": 3}),
+            linked_lengths({"data_format": "Vector", "period_length": 12, "stored_period_length": 3}),
             (3, 3),
         )
         self.assertEqual(linked_lengths({"data_format": "Vector", "period_length": 12}), (12, 12))

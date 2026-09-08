@@ -1,0 +1,10 @@
+{
+  "type": "fix",
+  "scope": "dataset",
+  "audience": "user",
+  "summary": "Switching a monthly linked dataset to a yearly view no longer reports every linked cell as broken.",
+  "details": [
+    "A dataset whose Excel range was linked at monthly lengths could be recorded as linked at the yearly view it happened to be saved at, so changing the view opened an \"Excel Link Reference Error\" listing thousands of cells that are no longer part of this dataset.",
+    "The origin period the links belong to is now read from the period the dataset's own file is held at, which is the only one a link can be entered at, instead of from a display the file may have been saved at long afterwards."
+  ]
+}

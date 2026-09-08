@@ -477,7 +477,13 @@ class ManualDatasetStoredShapeSaveTests(unittest.TestCase):
 
 
 class LinkedShapeSaveTests(ManualDatasetStoredShapeSaveTests):
-    """The display the links were written against moves only with the links."""
+    """The display the links were written against moves only with the links.
+
+    Only the development width is recorded. A link can be entered only where
+    the grid can be typed into, and that is the stored origin period: a
+    coarser origin row is read-only and a finer one is refused, so the origin
+    axis is read from the store rather than remembered.
+    """
 
     LINK = {
         "reference": "='C:\\Books\\[Book.xlsx]Sheet 1'!$A$1",
@@ -489,7 +495,7 @@ class LinkedShapeSaveTests(ManualDatasetStoredShapeSaveTests):
 
         result, payload = self._save(origin_length=1, development_length=1, external_links=[self.LINK])
 
-        self.assertEqual(payload["linked_origin_length"], 1)
+        self.assertNotIn("linked_origin_length", dataset_service.finalize_sidecar(payload))
         self.assertEqual(payload["linked_development_length"], 1)
         self.assertEqual(result["linked_origin_length"], 1)
         self.assertEqual(result["linked_development_length"], 1)
@@ -506,7 +512,7 @@ class LinkedShapeSaveTests(ManualDatasetStoredShapeSaveTests):
         result, payload = self._save(origin_length=12, development_length=12, external_links=[self.LINK])
 
         self.assertEqual((payload["origin_length"], payload["development_length"]), (12, 12))
-        self.assertEqual((payload["linked_origin_length"], payload["linked_development_length"]), (1, 1))
+        self.assertEqual(payload["linked_development_length"], 1)
         self.assertEqual((payload["stored_origin_length"], payload["stored_development_length"]), (1, 1))
         self.assertEqual(payload["csv_file"], MONTHLY_CSV)
         self.assertEqual((result["linked_origin_length"], result["linked_development_length"]), (1, 1))
@@ -515,9 +521,25 @@ class LinkedShapeSaveTests(ManualDatasetStoredShapeSaveTests):
         self.existing["external_links"] = [self.LINK]
         self._write_stored_csv(MONTHLY_CSV, [[100.0, 110.0], [120.0, np.nan]])
 
-        _result, payload = self._save(origin_length=12, development_length=12, external_links=[self.LINK])
+        result, payload = self._save(origin_length=12, development_length=12, external_links=[self.LINK])
 
-        self.assertEqual((payload["linked_origin_length"], payload["linked_development_length"]), (1, 1))
+        self.assertEqual(payload["linked_development_length"], 1)
+        self.assertEqual(result["linked_origin_length"], 1)
+
+    def test_links_stay_at_the_stored_origin_however_the_display_has_moved(self) -> None:
+        # A monthly triangle linked to an Excel range at 1/1 and later saved
+        # while shown yearly: the sidecar records the yearly display and, from
+        # before the linked width was written, states none. Reading the origin
+        # axis off that display would call the yearly view the links' own, and
+        # every one of their monthly cells would report itself broken there.
+        self.existing["external_links"] = [self.LINK]
+        self.existing["origin_length"] = 12
+        self.existing["development_length"] = 12
+        self._write_stored_csv(MONTHLY_CSV, [[100.0, 110.0], [120.0, np.nan]])
+
+        result, _payload = self._save(origin_length=12, development_length=12, external_links=[self.LINK])
+
+        self.assertEqual(result["linked_origin_length"], 1)
 
     def test_clearing_every_link_drops_the_linked_shape(self) -> None:
         self.existing["external_links"] = [self.LINK]
@@ -527,8 +549,8 @@ class LinkedShapeSaveTests(ManualDatasetStoredShapeSaveTests):
 
         _result, payload = self._save(origin_length=1, development_length=1, external_links=[])
 
-        self.assertNotIn("linked_origin_length", payload)
         self.assertNotIn("linked_development_length", payload)
+        self.assertNotIn("linked_origin_length", dataset_service.finalize_sidecar(payload))
 
     def test_display_at_records_the_display_apart_from_the_values_shape(self) -> None:
         # A link refresh reads and writes the cells at the linked shape while
@@ -549,7 +571,7 @@ class LinkedShapeSaveTests(ManualDatasetStoredShapeSaveTests):
         )
 
         self.assertEqual((payload["origin_length"], payload["development_length"]), (12, 12))
-        self.assertEqual((payload["linked_origin_length"], payload["linked_development_length"]), (1, 1))
+        self.assertEqual(payload["linked_development_length"], 1)
         self.assertEqual(payload["csv_file"], MONTHLY_CSV)
         written = pd.read_csv(os.path.join(self.data_dir, MONTHLY_CSV), header=None)
         self.assertEqual(written.iloc[0, 0], 130.0)

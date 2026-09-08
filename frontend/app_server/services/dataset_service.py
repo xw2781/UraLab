@@ -27,6 +27,7 @@ from arcrho_api.sidecar_audit_contract import (
     normalize_audit_log,
 )
 from arcrho_api.sidecar_core_contract import (
+    SIDECAR_LINKED_DEVELOPMENT_FIELD,
     display_lengths,
     finalize_sidecar,
     linked_length_fields,
@@ -2261,14 +2262,15 @@ def _record_linked_shape(
     """Stamp *payload* with the display its cell links were written against.
 
     A link names a cell of the grid that was on screen when it was entered,
-    so the shape this save's values come at becomes the linked shape whenever
-    the links themselves changed, and the shape the sidecar already records
-    stays whenever they did not -- the display may have moved on without them.
-    A sidecar with no link carries no linked shape.
+    so the development width this save's values come at becomes the linked
+    one whenever the links themselves changed, and the width the sidecar
+    already records stays whenever they did not -- the display may have moved
+    on without them. The origin axis is not recorded: ``linked_lengths`` reads
+    it from the store, which is the only origin period a link can be entered
+    at. A sidecar with no link carries no linked width.
     """
 
-    for field in ("linked_period_length", "linked_origin_length", "linked_development_length"):
-        payload.pop(field, None)
+    payload.pop(SIDECAR_LINKED_DEVELOPMENT_FIELD, None)
     if not any(payload.get(field) for field, _normalize in _DATASET_LINK_FIELDS):
         return
     links_changed = any(
@@ -2534,8 +2536,7 @@ def _save_dataset_sidecar_impl(
             "calendar",
             "stored_origin_length",
             "stored_development_length",
-            "linked_origin_length",
-            "linked_development_length",
+            SIDECAR_LINKED_DEVELOPMENT_FIELD,
         ):
             payload.pop(obsolete_key, None)
     else:
@@ -2545,7 +2546,6 @@ def _save_dataset_sidecar_impl(
         payload["calendar"] = bool(calendar)
         payload.pop("period_length", None)
         payload.pop("stored_period_length", None)
-        payload.pop("linked_period_length", None)
     if values is not None or csv_file or relabel_empty_input:
         # This save names the CSV -- it writes one from ``values``, relabels an
         # empty one, or the caller published one and passed its name -- so the

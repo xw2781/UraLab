@@ -485,12 +485,13 @@ class ExcelLinkRetargetTests(ExcelLinkFixture):
 
     def test_retarget_leaves_a_display_that_moved_on_from_the_links(self) -> None:
         # The dataset has been saved at a yearly-of-three view since its links
-        # were written at 12/12. The links are still read and written at 12/12,
-        # and the save records the 36/36 display rather than pulling it back.
+        # were written at 12/12. The links are still read and written at 12/12
+        # -- the origin axis from the store, the development one from the
+        # width the sidecar records -- and the save records the 36/36 display
+        # rather than pulling it back.
         sidecar = self.linked_sidecar()
         sidecar["origin_length"] = 36
         sidecar["development_length"] = 36
-        sidecar["linked_origin_length"] = 12
         sidecar["linked_development_length"] = 12
         self.write_json(self.sidecars / "Manual Paid.json", sidecar)
         self.dataset_display_shape = (12, 12)

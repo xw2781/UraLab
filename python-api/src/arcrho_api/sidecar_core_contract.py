@@ -110,11 +110,11 @@ SIDECAR_DISPLAY_DEVELOPMENT_FIELD = "development_length"
 SIDECAR_STORED_PERIOD_FIELD = "stored_period_length"
 SIDECAR_STORED_ORIGIN_FIELD = "stored_origin_length"
 SIDECAR_STORED_DEVELOPMENT_FIELD = "stored_development_length"
-# The display a dataset's cell links were written against. A link names a cell
-# of the grid that was on screen when it was entered, so the display can move
-# on and the links keep pointing into this one.
-SIDECAR_LINKED_PERIOD_FIELD = "linked_period_length"
-SIDECAR_LINKED_ORIGIN_FIELD = "linked_origin_length"
+# The development column width a dataset's cell links were written against. A
+# link names a cell of the grid that was on screen when it was entered, so the
+# display can move on and the links keep pointing into this one. Only this axis
+# is recorded: see :func:`linked_lengths` for why the origin one cannot differ
+# from the stored one.
 SIDECAR_LINKED_DEVELOPMENT_FIELD = "linked_development_length"
 
 # What a length reads as when a file states none, which is how every consumer
@@ -139,6 +139,10 @@ RETIRED_SIDECAR_FIELDS: frozenset[str] = frozenset({
     "processing_by_csv",
     "Precedents",  # Title Case predecessors of the graph keys
     "Dependents",
+    # A linked origin period that only ever restated the stored one, and a
+    # vector's linked period beside it. See :func:`linked_lengths`.
+    "linked_origin_length",
+    "linked_period_length",
     "path",
     "dependencies",
 })
@@ -253,34 +257,43 @@ def linked_length_fields(
     origin_length: Any,
     development_length: Any = None,
 ) -> dict[str, int]:
-    """The linked-shape fields a sidecar of *data_format* carries.
+    """The linked-shape field a sidecar of *data_format* carries.
 
-    The same pair as :func:`stored_length_fields`, naming the display the
-    dataset's cell links were written against. Only a sidecar that holds a
-    link carries them.
+    Names the development column width the dataset's cell links were written
+    against. The origin axis is not carried, because :func:`linked_lengths`
+    reads it from the store, and a vector carries nothing at all: it has only
+    the one axis. Only a sidecar that holds a link carries the field.
     """
 
     if is_vector_format(data_format):
-        return {SIDECAR_LINKED_PERIOD_FIELD: int(origin_length)}
-    return {
-        SIDECAR_LINKED_ORIGIN_FIELD: int(origin_length),
-        SIDECAR_LINKED_DEVELOPMENT_FIELD: int(development_length),
-    }
+        return {}
+    return {SIDECAR_LINKED_DEVELOPMENT_FIELD: int(development_length)}
 
 
 def linked_lengths(payload: Mapping[str, Any]) -> tuple[int, int]:
     """The ``(origin, development)`` months per period *payload*'s links name.
 
-    A sidecar that states no linked shape was saved with its links at the
-    display it records, so that pair answers for it.
+    A link is written on the grid the dataset was displayed at, and on the
+    origin axis that grid is always the one the file is held at: a coarser
+    origin row is the calendar diagonal of several stored rows and has no
+    single cell to write back to, so the whole grid is read-only there and no
+    link can be entered, and a display finer than the store is refused while
+    the dataset holds values. The origin axis therefore answers from the
+    store, never from a display that may have moved on since.
+
+    A coarser development column does have one stored cell behind it, so the
+    grid stays editable there and that axis alone can differ. It is the one a
+    sidecar records; a sidecar that states none was saved with its links at
+    the display it records.
     """
 
+    stored_origin, stored_development = stored_lengths(payload)
+    display_origin, display_development = display_lengths(payload)
+    origin = stored_origin or display_origin
     if is_vector_format(payload.get("data_format")):
-        period = _stored_months(payload.get(SIDECAR_LINKED_PERIOD_FIELD))
-        return (period, period) if period else display_lengths(payload)
-    origin = _stored_months(payload.get(SIDECAR_LINKED_ORIGIN_FIELD))
+        return origin, origin
     development = _stored_months(payload.get(SIDECAR_LINKED_DEVELOPMENT_FIELD))
-    return (origin, development) if origin and development else display_lengths(payload)
+    return origin, development or display_development or stored_development
 
 
 def _stored_months(value: Any) -> int:
@@ -488,8 +501,6 @@ __all__ = [
     "SIDECAR_DISPLAY_PERIOD_FIELD",
     "SIDECAR_JSON_FORMAT_FIELD",
     "SIDECAR_LINKED_DEVELOPMENT_FIELD",
-    "SIDECAR_LINKED_ORIGIN_FIELD",
-    "SIDECAR_LINKED_PERIOD_FIELD",
     "SIDECAR_PRECEDENTS_FIELD",
     "SIDECAR_STORED_DEVELOPMENT_FIELD",
     "SIDECAR_STORED_ORIGIN_FIELD",

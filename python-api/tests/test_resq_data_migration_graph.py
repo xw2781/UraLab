@@ -316,8 +316,10 @@ class ResqDataMigrationGraphTests(unittest.TestCase):
                 ],
             }],
         )
-        # The link is written against the display the vector is shown at.
-        self.assertEqual(sidecar["linked_period_length"], sidecar["period_length"])
+        # A vector has one axis and it is the stored one, so no linked length
+        # is carried: a link can only ever be written at the period the file
+        # is held at.
+        self.assertNotIn("linked_period_length", sidecar)
         # The link contributes instance-level precedent edges alongside the
         # type graph, and the RC-wide refresh writes the matching dependents
         # entry on each linked source that exists in the class.

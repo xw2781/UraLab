@@ -40,7 +40,6 @@ from arcrho_api.engine_dataset_sidecar_contract import build_engine_dataset_side
 from arcrho_api.sidecar_audit_contract import AUDIT_ACTION_INSERT, AUDIT_ACTION_UPDATE
 from arcrho_api.sidecar_core_contract import (
     dependency_entries,
-    linked_length_fields,
     stored_length_fields,
 )
 from arcrho_api.timestamps import format_persisted_timestamp, utc_now_text
@@ -1654,7 +1653,6 @@ def write_vector_export(
             )
             if translated:
                 meta["formula_links"] = translated
-                meta.update(linked_length_fields("Vector", _vector_payload_period_length(payload)))
         _apply_graph_meta_best_effort(meta, dataset_type, rc_dir)
     _write_sidecar_json(meta_path, meta)
     return csv_path
