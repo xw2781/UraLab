@@ -53,7 +53,7 @@ __pycache__/
 .vite/
 
 # Runtime, generated data, and local temp files
-python-api/migration/validation/
+python-api/migration/validation/results/
 data/
 !frontend/ui/shared/tabs/data/
 !frontend/ui/shared/tabs/data/**
