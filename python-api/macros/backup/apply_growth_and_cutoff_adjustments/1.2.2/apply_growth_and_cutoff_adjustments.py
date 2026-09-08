@@ -1,15 +1,15 @@
 # <arcrho-macro>
 # Title: Apply Growth and Cutoff Adjustments
-# Version: 1.3.0
-# Release Note: The formula the macro writes is now the plain average row name, without the ROUND that used to wrap it, because the Ratios tab already reads an average row at the method's Decimal Places.
+# Version: 1.2.2
+# Release Note: The macro now names the Flight Deck icon a button made from it starts with, so everyone who loads it gets the same glyph; you can still change the icon on your own button.
 # Description: Write the combined growth and accounting cutoff adjustment into the active
 #   DFM's User Entry row as a live in-cell formula, for example
-#   = "Simple - 2" * [Accounting Cutoff][-1] * [Growth Adjustment--Counts][-1].
+#   = ROUND("Simple - 2", 4) * [Accounting Cutoff][-1] * [Growth Adjustment--Counts][-1].
 #   The adjustment basis comes from the method's own input triangle: claim counts, paid,
 #   incurred, or a severity ratio of incurred over counts. Only the first three development
 #   periods are considered, each reading one row further back in the vectors, and a period
-#   whose factor is 1 is left alone. The average factor enters at the Decimal Places the
-#   Ratios tab shows it at; the vectors are multiplied in as stored. The average cell the
+#   whose factor is 1 is left alone. The average factor is rounded to the four decimals the
+#   notes show it at; the vectors are multiplied in as stored. The average cell the
 #   adjustment was built from is marked with a "Selected before adjustments." cell note
 #   before it is overwritten. Run "Generate Notes for Combined Adjustment" afterwards to
 #   write the matching method notes.
@@ -30,11 +30,12 @@ except Exception:  # pragma: no cover - script can still show useful errors
 
 from arcrho_api.combined_adjustment import (
     ACCOUNTING_CUTOFF_DATASET,
+    BASE_FACTOR_DECIMALS,
     GROWTH_ADJUSTMENT_DATASETS,
     adjustment_formula,
     parse_adjustment_notes,
 )
-from arcrho_api.dfm_contract import average_row_reference_value
+from arcrho_api.dfm_contract import round_half_up
 
 MACRO_TITLE = "Apply Growth and Cutoff Adjustments"
 
@@ -179,8 +180,7 @@ def adjustment_basis(dfm: Any) -> dict[str, Any]:
 # Reading the base average row back off a formula this macro wrote before
 # ---------------------------------------------------------------------------
 
-# The opening term is a bare "label" again since 1.3.0; the 1.2.x formulas that
-# wrapped it in ROUND("label", n) still read back.
+# The opening term is ROUND("label", n) since 1.2.0 and a bare "label" before it.
 _GENERATED_FORMULA_RE = re.compile(
     r'^=\s*(?:ROUND\(\s*"([^"]+)"\s*,\s*\d+\s*\)|"([^"]+)")\s*(.*)$', re.S | re.I
 )
@@ -397,7 +397,7 @@ def plan_adjustments(
         if not terms:
             continue
         opening = adjustment_formula(candidate["base_label"], [], candidate["col"])
-        base_value = average_row_reference_value(candidate["base_value"], dfm.decimal_places)
+        base_value = round_half_up(candidate["base_value"], BASE_FACTOR_DECIMALS)
         plans.append({
             "col": candidate["col"],
             "base_label": candidate["base_label"],

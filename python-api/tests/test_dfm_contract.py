@@ -564,6 +564,29 @@ class DfmContractTests(unittest.TestCase):
         self.assertEqual(round_half_up(1.5), 2.0)
         self.assertEqual(round_half_up(1.35735, 4), 1.3574)
 
+    def test_an_average_row_enters_a_formula_at_the_methods_decimal_places(self) -> None:
+        payload = owned_payload()
+        payload["details_tab"]["decimal_places"] = 4
+        formulas = payload["ratios_tab"]["average_formulas"]
+        formulas["inputs"][3][1] = '= "Volume - all" * 1.1'
+        # Volume - all in column 1 is 400/300, a repeating ratio, so the row a
+        # reader sees at four decimals is not the row stored at six.
+        method = recalculate_dfm_method(
+            payload,
+            input_snapshot=input_snapshot(values=[[100, 300, 400], [200, 430, None], [400, None, None]]),
+            ratio_basis_snapshot=basis_snapshot(),
+            timestamp="same",
+        )
+        values = method["ratios_tab"]["average_formulas"]["values"]
+        self.assertEqual(values[0][1], 1.333333)
+        self.assertEqual(values[3][1], canonical_number(1.3333 * 1.1))
+
+        # The same method printed at six decimals multiplies the stored row.
+        method["details_tab"]["decimal_places"] = 6
+        wider = recalculate_dfm_method(method, timestamp="later")
+        wider_values = wider["ratios_tab"]["average_formulas"]["values"]
+        self.assertEqual(wider_values[3][1], canonical_number(1.333333 * 1.1))
+
     def test_round_in_a_formula_fixes_an_operand_before_it_multiplies(self) -> None:
         payload = owned_payload()
         formulas = payload["ratios_tab"]["average_formulas"]

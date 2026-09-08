@@ -40,6 +40,7 @@ class FakeDfm:
         self._notes = notes
         self.project_name = "Project"
         self.reserving_class = "RC"
+        self.decimal_places = 4
 
     @property
     def average_formulas(self):
@@ -171,6 +172,20 @@ class NoteGenerationTests(unittest.TestCase):
         # reproduces it: 1.3505, not the 1.3504 that 1.35735 * 0.9949 gives.
         dfm = single_column_dfm(
             '= ROUND("Simple - 2", 4) * [Accounting Cutoff][-1]',
+            1.350478,
+            base_value=1.35735,
+        )
+        resolver = make_resolver({"Accounting Cutoff": (0.9949, "2026")})
+        note = generate(dfm, resolver)["note_blocks"][0]
+        self.assertIn('  - Selected average factor: "Simple - 2" (1.3574)', note)
+        self.assertIn("  - Selected LDF after adjustments: 1.3574 * 0.9949 = 1.3505", note)
+
+    def test_a_plain_base_is_shown_at_the_methods_decimal_places(self):
+        # The formula names no ROUND of its own, so the Ratios tab read the row
+        # at the method's four decimals and the cell holds 1.3574 * 0.9949. The
+        # note must state the same 1.3574 rather than the stored 1.35735.
+        dfm = single_column_dfm(
+            '= "Simple - 2" * [Accounting Cutoff][-1]',
             1.350478,
             base_value=1.35735,
         )

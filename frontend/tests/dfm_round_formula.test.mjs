@@ -7,7 +7,7 @@ import test from "node:test";
 // browser's evaluation of a formula matches the persisted value it re-creates.
 
 const calcUrl = new URL("../ui/method_pages/dfm/dfm_ratio_calc.js", import.meta.url).href;
-const { roundHalfUp, formatRatio } = await import(calcUrl);
+const { roundHalfUp, formatRatio, averageRowReferenceValue } = await import(calcUrl);
 
 const modelSource = await readFile(
   new URL("../ui/method_pages/dfm/ratios_summary/summary_model.js", import.meta.url),
@@ -53,6 +53,17 @@ test("ROUND in a User Entry formula fixes the operand before it multiplies", () 
   assert.equal(evaluate("= round(2.38625, 4)"), 2.3863);
   assert.equal(evaluate("= ROUND(1.5)"), 2);
   assert.equal(evaluate("= ROUND(1.5) + ROUND(2.5, 0)"), 5);
+});
+
+test("an average row enters a formula at the method's decimal places", () => {
+  // 400/300 stored at six decimals, read at the four the Ratios tab prints.
+  assert.equal(averageRowReferenceValue(1.3333333333, 4), 1.3333);
+  assert.equal(averageRowReferenceValue(1.3333333333, 6), 1.333333);
+  assert.equal(averageRowReferenceValue(2.386254, 4), 2.3863);
+  assert.equal(averageRowReferenceValue(Number.NaN, 4), null);
+
+  const rows = new Map([["Volume - all", averageRowReferenceValue(1.3333333333, 4)]]);
+  assert.ok(Math.abs(evaluate('= "Volume - all" * 1.1', rows) - 1.3333 * 1.1) < 1e-12);
 });
 
 test("no other word reaches the evaluator", () => {

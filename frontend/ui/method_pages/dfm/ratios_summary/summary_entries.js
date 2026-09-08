@@ -14,7 +14,7 @@ import {
 } from "/ui/method_pages/dfm/dfm_dataset_formula.js?v=20260820a";
 
 const {
-  state, calcRatio, roundRatio, formatRatio, computeAverageForColumn,
+  state, calcRatio, roundRatio, averageRowReferenceValue, formatRatio, computeAverageForColumn,
   ratioStrikeSet, selectedSummaryByCol, summaryRowConfigs, summaryRowMap, BASE_SUMMARY_ROWS,
   getShowNaBorders, getRatioSummaryRaf, setRatioSummaryRaf,
   getLastSummaryCtxRowId, setLastSummaryCtxRowId,
@@ -503,10 +503,11 @@ function clearSummaryReferenceUi(summaryTable) {
     .forEach((el) => el.classList.remove("summaryFormulaRefDragReady"));
 }
 
-// Reference values must come from the same canonical six-decimal engine that
-// recalculates User Entry rows, never from the displayed cell text: display
-// honors the Decimal Places setting, so a formula evaluated against rounded
-// text drifts from the persisted values and falsely reports refreshed changes.
+// Reference values are computed by the same engine that recalculates User Entry
+// rows, never read back off the displayed cell text, which carries a thousands
+// separator and an empty string where a row has no value. Each one is then read
+// at the Decimal Places the Ratios tab prints it at, so a reviewer multiplying
+// the digits on screen reaches the User Entry factor exactly.
 function buildSummaryReferenceValues(_summaryTable, col) {
   const out = new Map();
   if (!Number.isFinite(col) || col < 0) return out;
@@ -520,8 +521,12 @@ function buildSummaryReferenceValues(_summaryTable, col) {
   );
   const cache = new Map();
   const visiting = new Set();
+  const decimals = getDfmDecimalPlaces();
   labelToId.forEach((rowId, label) => {
-    const value = computeSummaryRowValueForColumn(model, col, rowId, cache, visiting, labelToId, lastCol);
+    const value = averageRowReferenceValue(
+      computeSummaryRowValueForColumn(model, col, rowId, cache, visiting, labelToId, lastCol),
+      decimals,
+    );
     if (Number.isFinite(value)) out.set(label, Number(value));
   });
   return out;
@@ -679,6 +684,8 @@ function computeSummaryRowValueForColumn(model, col, rowId, cache, visiting, lab
 
   let value = 1;
   if (isUserEntryConfig(cfg)) {
+    // A referenced row enters the formula at the precision the tab prints it at.
+    const decimals = getDfmDecimalPlaces();
     const storedInput = String(getUserEntryInputForCol(cfg, col) || "").trim();
     // Substitute dataset references with their last-resolved session values so
     // formulas that mix dataset references with average-formula row references
@@ -713,7 +720,10 @@ function computeSummaryRowValueForColumn(model, col, rowId, cache, visiting, lab
         for (const label of referencedLabels) {
           const depId = labelToId.get(label);
           if (!depId || String(depId) === key) continue;
-          const depValue = computeSummaryRowValueForColumn(model, col, depId, cache, visiting, labelToId, lastCol);
+          const depValue = averageRowReferenceValue(
+            computeSummaryRowValueForColumn(model, col, depId, cache, visiting, labelToId, lastCol),
+            decimals,
+          );
           if (Number.isFinite(depValue)) refValues.set(label, depValue);
         }
         visiting.delete(key);
@@ -729,7 +739,10 @@ function computeSummaryRowValueForColumn(model, col, rowId, cache, visiting, lab
       for (const label of referencedLabels) {
         const depId = labelToId.get(label);
         if (!depId || String(depId) === key) continue;
-        const depValue = computeSummaryRowValueForColumn(model, col, depId, cache, visiting, labelToId, lastCol);
+        const depValue = averageRowReferenceValue(
+          computeSummaryRowValueForColumn(model, col, depId, cache, visiting, labelToId, lastCol),
+          decimals,
+        );
         if (Number.isFinite(depValue)) refValues.set(label, depValue);
       }
       visiting.delete(key);

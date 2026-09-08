@@ -30,6 +30,7 @@ const {
   persistedRatioOrNull,
   roundRatio,
   roundHalfUp,
+  averageRowReferenceValue,
   formatRatio,
   computeAverageForColumn,
 } = await import(__ratioCalcUrl.toString());
@@ -40,6 +41,7 @@ export {
   persistedRatioOrNull,
   roundRatio,
   roundHalfUp,
+  averageRowReferenceValue,
   formatRatio,
   computeAverageForColumn,
 };

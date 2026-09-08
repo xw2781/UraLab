@@ -1,0 +1,11 @@
+{
+  "type": "improvement",
+  "scope": "dfm",
+  "audience": "user",
+  "summary": "A User Entry formula on the Ratios tab now reads an average row at the Decimal Places set on the Details tab, so the numbers on screen multiply out to the factor shown.",
+  "details": [
+    "The Apply Growth and Cutoff Adjustments macro writes the plain average row name instead of wrapping it in a rounding function, and the notes it generates still reconcile.",
+    "Formulas written by the earlier version of the macro keep working and give the same value.",
+    "Changing Decimal Places now re-works the User Entry rows and the results that depend on them, not just how the numbers are printed."
+  ]
+}

@@ -37,6 +37,9 @@ from .timestamps import persisted_timestamp as _timestamp
 
 DFM_JSON_FORMAT = "arcrho-dfm-v4"
 DFM_VALUE_DECIMAL_PLACES = 6
+# The Details tab's Decimal Places: how many decimals the Ratios tab prints,
+# and the precision an average row is read at inside a User Entry formula.
+DFM_DETAILS_DECIMAL_PLACES = 4
 _QUANTUM = Decimal("0.000001")
 _EXCEL_REFERENCE_RE = re.compile(
     r"(?:\[[^\]]+\]|(?:^|[=+\-*/,(])\s*'(?:[^']|'')+'!\s*\$?[A-Za-z]{1,3}\$?\d+|"
@@ -104,6 +107,25 @@ def round_half_up(value: float, digits: int = 0) -> float:
 
     quantum = Decimal(1).scaleb(-int(digits))
     return float(_canonical(float(value), quantum))
+
+
+def average_row_reference_value(value: Any, decimal_places: Any) -> float | None:
+    """Return the value an average row contributes to a User Entry formula.
+
+    A row enters the formula at the precision the Ratios tab prints it at, the
+    method's own Decimal Places, rather than at the six decimals it is stored
+    with. A reviewer then multiplies the digits shown in front of them and
+    lands on the User Entry factor exactly, with no rounding step hidden inside
+    the formula text. ``dfm_ratio_calc.js`` mirrors this for the browser, so
+    both evaluators reach the same number.
+    """
+
+    number = canonical_number(value)
+    if number is None:
+        return None
+    return round_half_up(
+        float(number), _integer(decimal_places, DFM_DETAILS_DECIMAL_PLACES, minimum=0, maximum=8)
+    )
 
 
 def canonical_input_number(value: Any) -> float | int | None:
@@ -545,7 +567,9 @@ def normalize_dfm_method(
             "input_triangle": input_name,
             "origin_length": _integer(details_source.get("origin_length"), 12, minimum=1),
             "development_length": _integer(details_source.get("development_length"), 12, minimum=1),
-            "decimal_places": _integer(details_source.get("decimal_places"), 4, minimum=0, maximum=8),
+            "decimal_places": _integer(
+                details_source.get("decimal_places"), DFM_DETAILS_DECIMAL_PLACES, minimum=0, maximum=8
+            ),
         },
         "data_tab": {
             "origin_labels": origin_labels,
@@ -1459,6 +1483,7 @@ def _evaluate_internal_formula(
     labels: list[str],
     computed: list[list[Any]],
     col: int,
+    decimal_places: Any,
     resolver: Any = None,
 ) -> float | None:
     text = str(formula or "").strip()
@@ -1472,7 +1497,9 @@ def _evaluate_internal_formula(
         row = lookup.get(_clean(match.group(1)).casefold())
         if row is None or row >= len(computed) or col >= len(computed[row]):
             return "nan"
-        value = canonical_number(resolver(row, col) if callable(resolver) else computed[row][col])
+        value = average_row_reference_value(
+            resolver(row, col) if callable(resolver) else computed[row][col], decimal_places
+        )
         return str(value) if value is not None else "nan"
 
     text = _INTERNAL_LABEL_RE.sub(replace, text)
@@ -1491,6 +1518,7 @@ def _calculate_formula_values(
     values = data["input_data_triangle_values"]
     mask = data["input_data_triangle_mask"]
     excluded = ratio["excluded"]
+    decimal_places = payload["details_tab"]["decimal_places"]
     old_values = _fit_matrix(_number_matrix(formulas.get("values")), len(labels), len(ratio["development_labels"]), None)
     inputs = _fit_matrix(_text_matrix(formulas.get("inputs")), len(labels), len(ratio["development_labels"]), "")
     col_count = len(ratio["development_labels"])
@@ -1567,6 +1595,7 @@ def _calculate_formula_values(
                         labels,
                         computed,
                         col,
+                        decimal_places,
                         resolver=resolve,
                     )
                     if substituted is not None
@@ -1580,6 +1609,7 @@ def _calculate_formula_values(
                     labels,
                     computed,
                     col,
+                    decimal_places,
                     resolver=resolve,
                 )
                 if chosen is None:

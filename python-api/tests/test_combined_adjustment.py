@@ -27,9 +27,9 @@ class FormulaTests(unittest.TestCase):
                 [("*", "Accounting Cutoff"), ("/", "Growth Adjustment--Counts")],
                 2,
             ),
-            '= ROUND("Simple - 2", 4) * [Accounting Cutoff][-3] / [Growth Adjustment--Counts][-3]',
+            '= "Simple - 2" * [Accounting Cutoff][-3] / [Growth Adjustment--Counts][-3]',
         )
-        self.assertEqual(shared.adjustment_formula("Simple - 2", [], 0), '= ROUND("Simple - 2", 4)')
+        self.assertEqual(shared.adjustment_formula("Simple - 2", [], 0), '= "Simple - 2"')
 
     def test_how_a_note_describes_a_dataset(self):
         self.assertEqual(shared.adjustment_description("Accounting Cutoff"), "accounting cutoff")

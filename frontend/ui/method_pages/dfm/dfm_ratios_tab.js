@@ -1502,11 +1502,17 @@ export function wireDfmSpinnerControls() {
       if (programmatic) delete decimalInput.dataset.programmatic;
       if (!changed) return;
       lastCommitted = normalized;
-      if (!programmatic) markDfmDirty();
       if (document.getElementById("dfmRatiosPage")?.style.display !== "none") {
         renderRatioTable();
       }
-      if (isRatioChartOpen()) scheduleRatioChartRender();
+      if (programmatic) {
+        if (isRatioChartOpen()) scheduleRatioChartRender();
+        return;
+      }
+      // Decimal Places is also the precision a User Entry formula reads an
+      // average row at, so changing it re-evaluates those rows and everything
+      // downstream of them, not just how the numbers are printed.
+      onRatioStateMutated();
     };
     decimalInput.addEventListener("input", applyDecimalPlaces);
     decimalInput.addEventListener("change", applyDecimalPlaces);

@@ -12,7 +12,7 @@ import {
   markDfmDirty,
   sanitizeDfmMethodFilePart,
 } from "/ui/method_pages/dfm/dfm_state.js";
-import { resetRatioChartThresholds } from "/ui/method_pages/dfm/dfm_ratios_tab.js?v=20260907a";
+import { resetRatioChartThresholds } from "/ui/method_pages/dfm/dfm_ratios_tab.js?v=20260907b";
 import {
   scheduleRatioSelectionLoad,
 } from "/ui/method_pages/dfm/dfm_persistence.js?v=20260907a";

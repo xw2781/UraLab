@@ -71,7 +71,7 @@ import {
   applyPersistedRatioDerivedSnapshot,
   renderRatioTable,
   queueDfmExternalChangeHighlights,
-} from "/ui/method_pages/dfm/dfm_ratios_tab.js?v=20260907a";
+} from "/ui/method_pages/dfm/dfm_ratios_tab.js?v=20260907b";
 import {
   applyPersistedResultsSnapshot,
   ensureResultsRatioBasisAligned,

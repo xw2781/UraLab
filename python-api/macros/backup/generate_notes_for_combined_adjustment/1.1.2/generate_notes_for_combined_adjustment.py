@@ -1,15 +1,14 @@
 # <arcrho-macro>
 # Title: Generate Notes for Combined Adjustment
-# Version: 1.2.0
-# Release Note: The average factor is now stated at the method's Decimal Places, the precision the Ratios tab reads it into the formula at, so a note still reconciles once the formula stops naming a ROUND of its own.
+# Version: 1.1.2
+# Release Note: The macro now names the Flight Deck icon a button made from it starts with, so everyone who loads it gets the same glyph; you can still change the icon on your own button.
 # Description: Read the selected User Entry formulas on the DFM Ratios tab that pull
 #   adjustment factors from other ArcRho datasets (for example
-#   = "Simple - 2" * [Accounting Cutoff][-1] * [C 01 - Growth Adjustment][-1]),
+#   = ROUND("Simple - 2", 4) * [Accounting Cutoff][-1] * [C 01 - Growth Adjustment][-1]),
 #   resolve each referenced cell, and generate method notes in the legacy
-#   "Apply Growth Adjustments" style. The average factor is shown at the method's
-#   Decimal Places, and a term wrapped in ROUND at that precision instead.
-#   Adjustment factors equal to 1 are left out of the notes. Complex formulas
-#   fall back to a resolved-formula note.
+#   "Apply Growth Adjustments" style. A term wrapped in ROUND is shown at that
+#   precision. Adjustment factors equal to 1 are left out of the notes. Complex
+#   formulas fall back to a resolved-formula note.
 # Scope: DFM
 # Icon: document
 # </arcrho-macro>
@@ -37,7 +36,7 @@ from arcrho_api.combined_adjustment import (
     note_header,
     selected_ldf_line,
 )
-from arcrho_api.dfm_contract import average_row_reference_value, round_half_up
+from arcrho_api.dfm_contract import round_half_up
 
 MACRO_TITLE = "Generate Notes for Combined Adjustment"
 NO_ADJUSTMENT_NOTE = "No combined adjustments were needed for this method."
@@ -527,15 +526,8 @@ def _column_note(dfm: Any, entry: dict[str, Any], parsed: dict[str, Any]) -> str
         product *= (1.0 / value) if factor["op"] == "/" else value
     if base_label is not None and base_value is None and final_value is not None and product:
         base_value = final_value / product
-    if base_value is not None:
-        # A ROUND the formula names itself wins; otherwise the Ratios tab read
-        # the average row at the method's Decimal Places, and the note states
-        # the same number the adjusted factor was built from.
-        base_value = (
-            round_half_up(base_value, parsed["base_round_digits"])
-            if parsed.get("base_round_digits") is not None
-            else average_row_reference_value(base_value, dfm.decimal_places)
-        )
+    if base_value is not None and parsed.get("base_round_digits") is not None:
+        base_value = round_half_up(base_value, parsed["base_round_digits"])
     if final_value is None:
         if base_label is not None and base_value is None:
             return _fallback_note(dfm, entry, parsed)
