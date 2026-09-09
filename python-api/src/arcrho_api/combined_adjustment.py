@@ -2,7 +2,7 @@
 
 Three producers share one shape. The "Apply Growth and Cutoff Adjustments"
 macro writes the User Entry formula, for example
-``= "Simple - 2" * [Accounting Cutoff][-1] * [Growth Adjustment--Counts][-1]``.
+``= ROUND("Simple - 2", 4) * [Accounting Cutoff][-1] * [Growth Adjustment--Counts][-1]``.
 The "Generate Notes for Combined Adjustment" macro writes the method notes that
 explain it::
 
@@ -32,10 +32,12 @@ GROWTH_ADJUSTMENT_DATASETS = {
 }
 ADJUSTMENT_DATASETS = (ACCOUNTING_CUTOFF_DATASET, *GROWTH_ADJUSTMENT_DATASETS.values())
 
-# The decimals the notes show a factor at. The Ratios tab reads an average row
-# into a User Entry formula at the method's own Decimal Places, which is four
-# in a reserve review, so the notes' arithmetic reconciles with the adjusted
-# value without the formula naming a precision of its own.
+# The decimals the notes show a factor at, and the precision the formula names
+# in its own ROUND. An average row otherwise enters a formula with every digit
+# it holds, so the rounding a reserve review wants is written down rather than
+# assumed, and the notes' arithmetic reconciles with the adjusted value. Only
+# the DFM's own average row is rounded: the growth and cutoff vectors are
+# already stored at four decimals and are multiplied in as they stand.
 BASE_FACTOR_DECIMALS = 4
 
 NOTE_HEADER_PREFIX = "For development period "
@@ -86,7 +88,7 @@ def adjustment_formula(base_label: str, terms: list[tuple[str, str]], column: in
     compounded factor per origin period, so development period n reads row -n.
     """
     row_idx = f"-{column + 1}"
-    parts = [f'= "{base_label}"']
+    parts = [f'= ROUND("{base_label}", {BASE_FACTOR_DECIMALS})']
     parts.extend(f"{op} [{dataset_name}][{row_idx}]" for op, dataset_name in terms)
     return " ".join(parts)
 

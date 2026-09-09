@@ -623,8 +623,11 @@ class RecreateAdjustmentFormulaTests(unittest.TestCase):
         '  - Selected average factor: "Simple - 2" (1.5000)\n'
         "  - Selected LDF after adjustments: 1.5000 * 1.02 = 1.5300"
     )
-    FIRST_FORMULA = '= "Simple - 2" * [Accounting Cutoff][-1] * [Growth Adjustment--Counts][-1]'
-    SECOND_FORMULA = '= "Simple - 2" * [Growth Adjustment--Counts][-2]'
+    FIRST_FORMULA = (
+        '= ROUND("Simple - 2", 4) * [Accounting Cutoff][-1]'
+        ' * [Growth Adjustment--Counts][-1]'
+    )
+    SECOND_FORMULA = '= ROUND("Simple - 2", 4) * [Growth Adjustment--Counts][-2]'
 
     def _recreate(self, *, notes=NOTES, selected=None, values=None, decimal_places=4):
         selected = selected or [[0, 0, 0, 0], [0, 0, 1, 0], [1, 1, 0, 0]]

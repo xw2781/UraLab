@@ -1,13 +1,13 @@
 # <arcrho-macro>
 # Title: Generate Notes for Combined Adjustment
-# Version: 1.3.0
-# Release Note: The average factor is stated at the precision the formula's own ROUND names, four decimals by default, because an average row no longer enters a formula rounded on its behalf.
+# Version: 1.2.0
+# Release Note: The average factor is now stated at the method's Decimal Places, the precision the Ratios tab reads it into the formula at, so a note still reconciles once the formula stops naming a ROUND of its own.
 # Description: Read the selected User Entry formulas on the DFM Ratios tab that pull
 #   adjustment factors from other ArcRho datasets (for example
-#   = ROUND("Simple - 2", 4) * [Accounting Cutoff][-1] * [C 01 - Growth Adjustment][-1]),
+#   = "Simple - 2" * [Accounting Cutoff][-1] * [C 01 - Growth Adjustment][-1]),
 #   resolve each referenced cell, and generate method notes in the legacy
-#   "Apply Growth Adjustments" style. A term wrapped in ROUND is shown at that
-#   precision, and an average factor the formula does not round at four decimals.
+#   "Apply Growth Adjustments" style. The average factor is shown at the method's
+#   Decimal Places, and a term wrapped in ROUND at that precision instead.
 #   Adjustment factors equal to 1 are left out of the notes. Complex formulas
 #   fall back to a resolved-formula note.
 # Scope: DFM
@@ -27,7 +27,6 @@ except Exception:  # pragma: no cover - script can still show useful errors
 
 from arcrho_api.combined_adjustment import (
     APPLY_LINE_PREFIX,
-    BASE_FACTOR_DECIMALS,
     BASE_FACTOR_LINE_PREFIX,
     NOTE_BULLET_CHARS,
     NOTE_HEADER_PREFIX,
@@ -38,7 +37,7 @@ from arcrho_api.combined_adjustment import (
     note_header,
     selected_ldf_line,
 )
-from arcrho_api.dfm_contract import round_half_up
+from arcrho_api.dfm_contract import average_row_reference_value, round_half_up
 
 MACRO_TITLE = "Generate Notes for Combined Adjustment"
 NO_ADJUSTMENT_NOTE = "No combined adjustments were needed for this method."
@@ -529,14 +528,13 @@ def _column_note(dfm: Any, entry: dict[str, Any], parsed: dict[str, Any]) -> str
     if base_label is not None and base_value is None and final_value is not None and product:
         base_value = final_value / product
     if base_value is not None:
-        # A ROUND the formula names itself wins. A formula that names none took
-        # the row whole, and the note states it at the decimals the notes use,
-        # so the arithmetic a reader checks still lands on the adjusted value.
-        base_value = round_half_up(
-            base_value,
-            parsed["base_round_digits"]
+        # A ROUND the formula names itself wins; otherwise the Ratios tab read
+        # the average row at the method's Decimal Places, and the note states
+        # the same number the adjusted factor was built from.
+        base_value = (
+            round_half_up(base_value, parsed["base_round_digits"])
             if parsed.get("base_round_digits") is not None
-            else BASE_FACTOR_DECIMALS,
+            else average_row_reference_value(base_value, dfm.decimal_places)
         )
     if final_value is None:
         if base_label is not None and base_value is None:

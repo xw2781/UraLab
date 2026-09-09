@@ -113,3 +113,49 @@ export function formatFormulaText(rawText) {
   if (formatted.startsWith("=")) return `= ${formatted.slice(1).trimStart()}`;
   return formatted;
 }
+
+/**
+ * Drop the ROUND(...) a formula wraps a term in, keeping the term itself.
+ *
+ * A reserve review's User Entry formula names its own precision - an average
+ * row is taken at four decimals, and the formula says so - but a reader
+ * scanning the Ratios tab wants the factor, not the bookkeeping. The stored
+ * text is untouched: this is only what the rendered formula shows, so editing
+ * the cell still reveals the ROUND that is really there.
+ *
+ * Only a complete ROUND(term, digits) is unwrapped. Anything else - a ROUND
+ * still being typed, or one whose parentheses do not balance - is left alone,
+ * so a half-written formula reads back exactly as it was entered.
+ */
+export function stripRoundWrappers(rawText) {
+  const text = String(rawText || "");
+  let out = "";
+  let i = 0;
+  while (i < text.length) {
+    const match = /^round\s*\(/i.exec(text.slice(i));
+    if (!match) {
+      out += text[i];
+      i += 1;
+      continue;
+    }
+    const open = i + match[0].length;
+    let depth = 1;
+    let j = open;
+    let lastComma = -1;
+    for (; j < text.length && depth > 0; j += 1) {
+      const ch = text[j];
+      if (ch === "(") depth += 1;
+      else if (ch === ")") depth -= 1;
+      else if (ch === "," && depth === 1) lastComma = j;
+    }
+    // Unbalanced, or no digits argument: leave the call as the author wrote it.
+    if (depth !== 0 || lastComma < 0 || !/^\s*\d+\s*$/.test(text.slice(lastComma + 1, j - 1))) {
+      out += text[i];
+      i += 1;
+      continue;
+    }
+    out += stripRoundWrappers(text.slice(open, lastComma)).trim();
+    i = j;
+  }
+  return out;
+}

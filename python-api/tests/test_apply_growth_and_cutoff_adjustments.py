@@ -221,11 +221,11 @@ class FormulaTests(unittest.TestCase):
         first = result["plans"][0]
         self.assertEqual(
             first["formula"],
-            '= "Simple - 2" * [Accounting Cutoff][-1] * [Growth Adjustment--Counts][-1]',
+            '= ROUND("Simple - 2", 4) * [Accounting Cutoff][-1] * [Growth Adjustment--Counts][-1]',
         )
         self.assertEqual(
             first["display_formula"],
-            '= "Simple - 2" * [Accounting Cutoff][2026] * [Growth Adjustment--Counts][2026]',
+            '= ROUND("Simple - 2", 4) * [Accounting Cutoff][2026] * [Growth Adjustment--Counts][2026]',
         )
         self.assertAlmostEqual(first["value"], round(4.0 * 1.0117 * 1.0426, 6))
 
@@ -257,7 +257,8 @@ class FormulaTests(unittest.TestCase):
         _basis, result = plan(dfm, rows)
         self.assertEqual([item["col"] for item in result["plans"]], [0, 2])
         self.assertEqual(
-            result["plans"][1]["formula"], '= "Simple - 3" * [Growth Adjustment--Counts][-3]'
+            result["plans"][1]["formula"],
+            '= ROUND("Simple - 3", 4) * [Growth Adjustment--Counts][-3]',
         )
 
     def test_only_the_first_three_periods_are_considered(self):
@@ -278,7 +279,8 @@ class FormulaTests(unittest.TestCase):
         _basis, result = plan(dfm)
         self.assertEqual(
             result["plans"][0]["formula"],
-            '= "Simple - 3" * [Growth Adjustment--Incurred][-1] / [Growth Adjustment--Counts][-1]',
+            '= ROUND("Simple - 3", 4) * [Growth Adjustment--Incurred][-1]'
+            ' / [Growth Adjustment--Counts][-1]',
         )
         self.assertAlmostEqual(result["plans"][0]["value"], round(3.0 * 1.0438 / 1.0426, 6))
 

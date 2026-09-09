@@ -11,8 +11,9 @@ import {
 } from "/ui/method_pages/dfm/dfm_dataset_formula.js?v=20260820a";
 import {
   formatFormulaText,
+  stripRoundWrappers,
   tokenizeFormula,
-} from "/ui/shared/components/formula_bar/formula_text.js?v=20260812a";
+} from "/ui/shared/components/formula_bar/formula_text.js?v=20260908a";
 import {
   registerSummaryFunctions,
   summaryRuntime,
@@ -90,7 +91,7 @@ function isNeutralDatasetFactor(value) {
  */
 function renderFormulaBarDisplay(displayEl, rawText, sourceText = rawText) {
   if (!displayEl) return;
-  const tokens = tokenizeFormula(rawText);
+  const tokens = tokenizeFormula(stripRoundWrappers(rawText));
   if (!tokens.length) {
     displayEl.textContent = "";
     return;
@@ -682,6 +683,7 @@ registerSummaryFunctions({
   scrollSummaryFormulaInputToEnd,
   tokenizeFormula,
   formatFormulaText,
+  stripRoundWrappers,
   openDfmFormulaDataset,
   renderFormulaBarDisplay,
   updateFormulaBarDisplayMode,

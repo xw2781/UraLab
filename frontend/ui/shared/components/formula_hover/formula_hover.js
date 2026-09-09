@@ -18,7 +18,7 @@ import {
   invalidateFormulaBarWidthCache,
 } from "/ui/shared/components/formula_bar/formula_bar_layout.js?v=20260812a";
 import { createFormulaBarDragController } from "/ui/shared/components/formula_bar/formula_bar_drag.js?v=20260829b";
-import { tokenizeFormula } from "/ui/shared/components/formula_bar/formula_text.js?v=20260812a";
+import { tokenizeFormula } from "/ui/shared/components/formula_bar/formula_text.js?v=20260908a";
 
 const FORMULA_HOVER_STYLE_ID = "arcrho-formula-hover-style";
 const FORMULA_HOVER_STYLESHEETS = [

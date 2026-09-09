@@ -21,7 +21,7 @@ const formulaTextUrl = new URL(
 const validation = await import(`data:text/javascript;base64,${Buffer.from(helperSource).toString("base64")}`);
 const summaryFormatterSource = summarySource
   .replace(
-    '"/ui/shared/components/formula_bar/formula_text.js?v=20260812a"',
+    '"/ui/shared/components/formula_bar/formula_text.js?v=20260908a"',
     JSON.stringify(formulaTextUrl),
   )
   .replace(
