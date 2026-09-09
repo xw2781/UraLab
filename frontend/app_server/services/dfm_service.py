@@ -333,7 +333,7 @@ def _load_source_snapshot(
         if not csv_path:
             raise HTTPException(422, f"DFM precedent '{dataset_name}' does not identify its cache CSV.")
     try:
-        frame = pd.read_csv(csv_path, header=None).astype(object)
+        frame = pd.read_csv(csv_path, header=None, float_precision="round_trip").astype(object)
     except FileNotFoundError as exc:
         raise HTTPException(404, f"DFM precedent CSV is missing: {dataset_name}") from exc
     except PermissionError as exc:

@@ -548,7 +548,7 @@ def _read_source_values(
     if not csv_path:
         raise RuntimeError(f"B&S source CSV is missing: {name}")
     try:
-        frame = pd.read_csv(csv_path, header=None).astype(object)
+        frame = pd.read_csv(csv_path, header=None, float_precision="round_trip").astype(object)
     except PermissionError as exc:
         raise RuntimeError(f"B&S source CSV is locked: {name}") from exc
     except Exception as exc:

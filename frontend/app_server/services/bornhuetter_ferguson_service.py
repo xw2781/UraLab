@@ -261,7 +261,7 @@ def _read_source_snapshot_from_sidecar(
     if not csv_path:
         raise HTTPException(422, f"BF precedent '{requested_name}' does not identify its cache CSV.")
     try:
-        frame = pd.read_csv(csv_path, header=None).astype(object)
+        frame = pd.read_csv(csv_path, header=None, float_precision="round_trip").astype(object)
     except FileNotFoundError as exc:
         raise HTTPException(404, f"BF precedent CSV is missing: {requested_name}") from exc
     except PermissionError as exc:

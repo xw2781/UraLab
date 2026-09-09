@@ -416,7 +416,7 @@ def load_to_DATA_DICT(csv_path):
     print(f"Loading Data Table {csv_path} @ {get_current_time()}")
     key = _data_table_cache_key(csv_path)
     _enforce_data_dict_limit(max_tables=10)
-    DATA_DICT[key] = pd.read_csv(csv_path)
+    DATA_DICT[key] = pd.read_csv(csv_path, float_precision="round_trip")
     DATA_DICT[key + " - Version"] = datetime.now()
     if key not in DATA_DICT_LOAD_ORDER:
         DATA_DICT_LOAD_ORDER.append(key)
@@ -429,7 +429,7 @@ def load_dataframe(data_csv_path):
     '''
     print(get_current_time())
     print(f'Loading Data Table -- [{os.path.basename(data_csv_path)}]')
-    df = pd.read_csv(data_csv_path) # build off-thread
+    df = pd.read_csv(data_csv_path, float_precision="round_trip") # build off-thread
     with DATA_DICT_LOCK:
         key = _data_table_cache_key(data_csv_path)
         _enforce_data_dict_limit(max_tables=10)

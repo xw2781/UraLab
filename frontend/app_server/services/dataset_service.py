@@ -332,7 +332,7 @@ def infer_shape(path: str) -> Tuple[int, int]:
 
 
 def load_triangle_values(path: str) -> pd.DataFrame:
-    return pd.read_csv(path, header=None, dtype="float64")
+    return pd.read_csv(path, header=None, dtype="float64", float_precision="round_trip")
 
 
 def triangle_mask(n_origin: int, n_dev: int) -> np.ndarray:
@@ -1484,7 +1484,7 @@ def _rolled_up_dataset(ds_id: str) -> Tuple[pd.DataFrame, float] | None:
     if not source_path or not os.path.exists(source_path):
         return None
     rows = pd.read_csv(
-        source_path, header=None, dtype="float64", keep_default_na=True
+        source_path, header=None, dtype="float64", keep_default_na=True, float_precision="round_trip"
     ).to_numpy().tolist()
     values = rollup_triangle(
         rows,
@@ -1507,7 +1507,9 @@ def get_dataset(ds_id: str, project_name: str, origin_length: int) -> Dict[str, 
     if rolled_up is None:
         if not os.path.exists(path):
             return None
-        df = pd.read_csv(path, header=None, dtype="float64", keep_default_na=True)
+        df = pd.read_csv(
+            path, header=None, dtype="float64", keep_default_na=True, float_precision="round_trip"
+        )
         mtime = os.stat(path).st_mtime
     else:
         df, mtime = rolled_up
@@ -2006,7 +2008,7 @@ def load_cached_dataset_values(
             raise HTTPException(404, f"Requested cached dataset CSV not found for '{ds}'.")
         raise HTTPException(404, f"Cached dataset CSV not found for '{ds}'.")
     try:
-        df = pd.read_csv(csv_path, header=None)
+        df = pd.read_csv(csv_path, header=None, float_precision="round_trip")
     except PermissionError:
         raise HTTPException(423, "Dataset cache CSV is locked or inaccessible.")
     except OSError as err:

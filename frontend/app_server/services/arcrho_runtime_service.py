@@ -917,7 +917,9 @@ def _derive_triangle_cache(candidate: Dict[str, Any], pairs: list, target_path: 
     # The view is valued on the project's Development End Date, like every
     # triangle created at the requested shape would be.
     valuation = dataset_service.valuation_months(_pair_value(pairs, "ProjectName"))
-    df = pd.read_csv(source_path, header=None, dtype="float64", keep_default_na=True)
+    df = pd.read_csv(
+        source_path, header=None, dtype="float64", keep_default_na=True, float_precision="round_trip"
+    )
     values = rollup_triangle(
         df.to_numpy().tolist(),
         source_origin_length=source_origin,
