@@ -775,9 +775,7 @@ class ResQClient:
         return str(value)
 
     def _snapshot_value(self, value):
-        value = self._json_value(value)
-        if isinstance(value, bool) or value is None:
-            return value
-        if isinstance(value, (int, float)):
-            return round(value, 4)
-        return value
+        # A shape coercion, not a precision policy. The snapshot carries ResQ's
+        # own factor back to ArcRho, where it becomes a stored value the ultimate
+        # chains, so it is returned with every digit ResQ gave.
+        return self._json_value(value)

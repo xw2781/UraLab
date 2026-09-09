@@ -88,9 +88,14 @@ test("Ratio Basis active values are derived by name without I/O", () => {
   assert.deepEqual(ratioBasisValuesForName(sets, "Exposure"), [3, 4]);
 });
 
-test("six-decimal Result Selection rounding is symmetric half-away-from-zero", () => {
-  assert.equal(roundResultSelectionNumber(1.2345675), 1.234568);
-  assert.equal(roundResultSelectionNumber(-1.2345675), -1.234568);
+test("Result Selection numbers keep the precision they were observed with", () => {
+  // Each value is another method's ultimate copied in, so it is carried whole
+  // rather than projected onto six decimals.
+  assert.equal(roundResultSelectionNumber(1.2345675), 1.2345675);
+  assert.equal(roundResultSelectionNumber(-1.2345675), -1.2345675);
+  assert.equal(roundResultSelectionNumber(null), null);
+  assert.equal(roundResultSelectionNumber(""), null);
+  assert.equal(roundResultSelectionNumber("nope"), null);
 });
 
 test("existing Result Selection apply uses persisted values without source or basis reloads", async () => {

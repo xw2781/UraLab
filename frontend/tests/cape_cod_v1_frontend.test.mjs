@@ -160,9 +160,11 @@ test("Cape Cod v1 payload is self-contained with canonical identity labels", () 
   assert.equal(payload.method_metadata.derived_revision, "derived-in-method");
 });
 
-test("Cape Cod canonical rounding is half-away-from-zero at six and eight decimals", () => {
-  assert.equal(roundCapeCodNumber(1.2345675), 1.234568);
-  assert.equal(roundCapeCodNumber(-1.2345675), -1.234568);
+test("Cape Cod numbers keep their precision and rates round at eight decimals", () => {
+  // A value read from a DFM is carried whole; only a rate box, which offers
+  // eight decimals of its own, is canonicalized to that precision.
+  assert.equal(roundCapeCodNumber(1.2345675), 1.2345675);
+  assert.equal(roundCapeCodNumber(-1.2345675), -1.2345675);
   assert.equal(roundCapeCodNumber(null), null);
   assert.equal(roundCapeCodRate(0.123456785), 0.12345679);
   assert.equal(roundCapeCodRate(-0.123456785), -0.12345679);

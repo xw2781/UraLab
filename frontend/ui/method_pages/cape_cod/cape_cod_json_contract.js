@@ -19,12 +19,11 @@ function finiteNumber(value) {
   return Number.isFinite(number) ? number : null;
 }
 
-// Six-decimal half-away-from-zero canonicalization (dfm_contract.canonical_number mirror).
+// Kept at the precision it was observed with (cape_cod_contract._number mirror).
+// The expected-loss chain reads a DFM's factors, which carry full double
+// precision, so quantizing the copy here would reintroduce the drift from ResQ.
 export function roundCapeCodNumber(value) {
-  const number = finiteNumber(value);
-  if (number === null) return null;
-  const rounded = Math.round(Math.abs(number) * 1_000_000) / 1_000_000;
-  return number < 0 ? -rounded : rounded;
+  return finiteNumber(value);
 }
 
 // Eight-decimal half-away-from-zero canonicalization for rate/factor parameters

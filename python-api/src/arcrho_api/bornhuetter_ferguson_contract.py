@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 from typing import Any, Iterable, Mapping
 
 from .dataset_display_contract import normalize_show_subtotal
-from .dfm_contract import aggregate_vector_values, canonical_number
+from .dfm_contract import aggregate_vector_values, canonical_input_number
 from .revision_contract import fingerprint
 from .sidecar_audit_contract import (
     AUDIT_ACTION_INSERT,
@@ -67,9 +67,16 @@ def _labels(value: Any) -> list[str]:
 
 
 def _number(value: Any) -> float | int | None:
-    """Canonicalize JSON numbers without retaining producer-specific 1 vs 1.0 types."""
+    """Canonicalize JSON numbers without retaining producer-specific 1 vs 1.0 types.
 
-    result = canonical_number(value)
+    The number is kept at the precision it was observed with. A percentage
+    developed, an a-priori ratio and an ultimate all come from a DFM that
+    chains its factors in full double precision, so quantizing the copy here
+    would reintroduce, one method further down, exactly the drift from ResQ the
+    chain was fixed to remove.
+    """
+
+    result = canonical_input_number(value)
     if isinstance(result, float) and result.is_integer():
         return int(result)
     return result

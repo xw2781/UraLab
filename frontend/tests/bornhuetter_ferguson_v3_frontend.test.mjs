@@ -65,7 +65,7 @@ test("BF v3 payload is self-contained and preserves effective-weight and revisio
   assert.equal(payload.json_format, BORN_HUETTER_FERGUSON_JSON_FORMAT);
   assert.equal(payload.method_tab.show_effective_weights, true);
   assert.equal(payload.details_tab.dataset_category, "Claims");
-  assert.deepEqual(payload.method_tab.latest_values, [10.123457, 20]);
+  assert.deepEqual(payload.method_tab.latest_values, [10.1234567, 20]);
   assert.deepEqual(payload.method_tab.dfm_ultimate_values, [25, 40]);
   assert.deepEqual(payload.method_tab.prior_datasets, [{
     name: "Prior Ultimate",
@@ -79,9 +79,14 @@ test("BF v3 payload is self-contained and preserves effective-weight and revisio
   assert.equal(payload.method_metadata.derived_revision, "derived-in-method");
 });
 
-test("BF six-decimal rounding is symmetric half-away-from-zero", () => {
-  assert.equal(roundBornhuetterFergusonNumber(1.2345675), 1.234568);
-  assert.equal(roundBornhuetterFergusonNumber(-1.2345675), -1.234568);
+test("BF numbers keep the precision they were observed with", () => {
+  // The vector a BF reads is a DFM's, chained in full double precision, so the
+  // copy is carried whole rather than projected onto six decimals.
+  assert.equal(roundBornhuetterFergusonNumber(1.2345675), 1.2345675);
+  assert.equal(roundBornhuetterFergusonNumber(-1.2345675), -1.2345675);
+  assert.equal(roundBornhuetterFergusonNumber(null), null);
+  assert.equal(roundBornhuetterFergusonNumber(""), null);
+  assert.equal(roundBornhuetterFergusonNumber("nope"), null);
 });
 
 test("BF dirty refresh rebases local weights by origin label", () => {

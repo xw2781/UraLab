@@ -109,23 +109,19 @@ def round_half_up(value: float, digits: int = 0) -> float:
     return float(_canonical(float(value), quantum))
 
 
-def average_row_reference_value(value: Any, decimal_places: Any) -> float | None:
+def average_row_reference_value(value: Any) -> float | None:
     """Return the value an average row contributes to a User Entry formula.
 
-    A row enters the formula at the precision the Ratios tab prints it at, the
-    method's own Decimal Places, rather than at the six decimals it is stored
-    with. A reviewer then multiplies the digits shown in front of them and
-    lands on the User Entry factor exactly, with no rounding step hidden inside
-    the formula text. ``dfm_ratio_calc.js`` mirrors this for the browser, so
-    both evaluators reach the same number.
+    A row enters the formula with every digit it holds. ResQ chains the factor
+    it computed, not the one it printed, so a formula that quietly took the row
+    at the Details tab's Decimal Places produced a different ultimate from the
+    same inputs. A formula that wants the printed number says so itself, with
+    ``ROUND("Simple - 2", 4)``; nothing is rounded on its behalf.
+    ``dfm_ratio_calc.js`` mirrors this for the browser, so both evaluators reach
+    the same number.
     """
 
-    number = canonical_number(value)
-    if number is None:
-        return None
-    return round_half_up(
-        float(number), _integer(decimal_places, DFM_DETAILS_DECIMAL_PLACES, minimum=0, maximum=8)
-    )
+    return canonical_input_number(value)
 
 
 def canonical_input_number(value: Any) -> float | int | None:
@@ -205,7 +201,7 @@ def aggregate_vector_values(
 ) -> list[float | int | None]:
     """Aggregate a vector with the shared exact chronological-bucket rule."""
 
-    vector = [canonical_number(item[0] if isinstance(item, list) and item else item) for item in values]
+    vector = [canonical_input_number(item[0] if isinstance(item, list) and item else item) for item in values]
     labels = [str(item if item is not None else "") for item in origin_labels]
     factor = target_length // base_length if base_length and target_length % base_length == 0 else 0
     if factor <= 1 or not vector:
@@ -228,7 +224,7 @@ def aggregate_vector_values(
         vector[index:index + factor] for index in range(0, len(vector), factor)
     ]
     return [
-        canonical_number(sum(float(value) for value in group if value is not None))
+        canonical_input_number(sum(float(value) for value in group if value is not None))
         if any(value is not None for value in group)
         else None
         for group in groups
@@ -242,7 +238,7 @@ def dfm_output_variants(payload: Mapping[str, Any]) -> dict[int, list[float | in
     data = _tab(payload, "data_tab")
     results = _tab(payload, "results_tab")
     base_length = _integer(details.get("origin_length"), 12, minimum=1)
-    values = _numbers(results.get("ultimate_vector"))
+    values = _input_numbers(results.get("ultimate_vector"))
     variants = {base_length: values}
     for target_length in (3, 6, 12):
         if target_length <= base_length or target_length % base_length:
@@ -513,7 +509,9 @@ def normalize_dfm_method(
         default=0,
     )
     selected = _fit_matrix(_int_matrix(formulas_source.get("selected")), formula_count, formula_cols, 0)
-    formula_values = _fit_matrix(_number_matrix(formulas_source.get("values")), formula_count, formula_cols, None)
+    formula_values = _fit_matrix(
+        _input_number_matrix(formulas_source.get("values")), formula_count, formula_cols, None
+    )
     formula_inputs = _fit_matrix(_text_matrix(formulas_source.get("inputs")), formula_count, formula_cols, "")
     formula_display_inputs = _fit_matrix(
         _text_matrix(formulas_source.get("display_inputs")), formula_count, formula_cols, ""
@@ -524,7 +522,7 @@ def normalize_dfm_method(
     # validation below rejects anything else), so they are not persisted; a
     # stored file supplies none and the copy is re-derived here.
     basis_origin_labels = _labels(results_source.get("ratio_basis_origin_labels")) or list(origin_labels)
-    basis_values = _numbers(results_source.get("ratio_basis_values"))
+    basis_values = _input_numbers(results_source.get("ratio_basis_values"))
     if not basis_name:
         basis_origin_labels = []
         basis_values = []
@@ -611,7 +609,7 @@ def normalize_dfm_method(
             "ultimate_ratio_decimal_places": _integer(
                 results_source.get("ultimate_ratio_decimal_places"), 2, minimum=0, maximum=8
             ),
-            "ultimate_vector": _numbers(results_source.get("ultimate_vector")),
+            "ultimate_vector": _input_numbers(results_source.get("ultimate_vector")),
         },
         "method_metadata": {
             "last_modified": str(metadata_source.get("last_modified") or "").strip() or default_time,
@@ -1288,7 +1286,7 @@ def _apply_ratio_basis_snapshot(payload: dict[str, Any], snapshot: Mapping[str, 
     raw_values = snapshot.get("values")
     if isinstance(raw_values, list) and raw_values and any(isinstance(row, list) for row in raw_values):
         raw_values = [row[0] if isinstance(row, list) and row else None for row in raw_values]
-    source_values = _numbers(raw_values)
+    source_values = _input_numbers(raw_values)
     lookup = {
         label: source_values[index] if index < len(source_values) else None
         for index, label in enumerate(source_origins)
@@ -1498,7 +1496,7 @@ def _evaluate_internal_formula(
         if row is None or row >= len(computed) or col >= len(computed[row]):
             return "nan"
         value = average_row_reference_value(
-            resolver(row, col) if callable(resolver) else computed[row][col], decimal_places
+            resolver(row, col) if callable(resolver) else computed[row][col]
         )
         return str(value) if value is not None else "nan"
 
@@ -1529,7 +1527,7 @@ def _calculate_formula_values(
         # The "- Ult" column is the row's own tail factor, entered rather than
         # averaged: ResQ keeps it as each average row's TailFactor. A computed
         # average row has none and stays at 1.0.
-        value = canonical_number(old_values[row][tail_col]) if 0 <= tail_col < len(old_values[row]) else None
+        value = canonical_input_number(old_values[row][tail_col]) if 0 <= tail_col < len(old_values[row]) else None
         return float(value) if value is not None and value > 0 else 1.0
 
     for row, _label in enumerate(labels):
@@ -1538,12 +1536,12 @@ def _calculate_formula_values(
             continue
         if settings["base"][row] == "benchmark":
             computed[row] = [
-                canonical_number(value) if canonical_number(value) is not None else 1.0
+                canonical_input_number(value) if canonical_input_number(value) is not None else 1.0
                 for value in old_values[row]
             ]
             continue
         for col in range(col_count):
-            computed[row][col] = 1.0 if col >= tail_col else canonical_number(
+            computed[row][col] = 1.0 if col >= tail_col else canonical_input_number(
                 _calculate_average(
                     values,
                     mask,
@@ -1557,10 +1555,10 @@ def _calculate_formula_values(
     resolving: set[tuple[int, int]] = set()
 
     def resolve(row: int, col: int) -> Any:
-        existing = canonical_number(computed[row][col])
+        existing = canonical_input_number(computed[row][col])
         if existing is not None:
             return existing
-        stored = canonical_number(old_values[row][col])
+        stored = canonical_input_number(old_values[row][col])
         key = (row, col)
         if key in resolving:
             return stored if stored is not None and stored > 0 else 1.0
@@ -1616,7 +1614,7 @@ def _calculate_formula_values(
                     chosen = stored
             else:
                 chosen = stored
-            computed[row][col] = canonical_number(chosen) if chosen is not None and chosen > 0 else 1.0
+            computed[row][col] = canonical_input_number(chosen) if chosen is not None and chosen > 0 else 1.0
             return computed[row][col]
         finally:
             resolving.remove(key)
@@ -1668,7 +1666,7 @@ def selected_ratio_values(payload: Mapping[str, Any]) -> list[float]:
         average_type = settings["average_type"][row] if row < len(settings["average_type"]) else "custom"
         base = settings["base"][row] if row < len(settings["base"]) else "volume"
         if average_type == "user_entry" or base == "benchmark" or col >= last_computed_col:
-            value = canonical_number(stored[row][col] if row < len(stored) and col < len(stored[row]) else None)
+            value = canonical_input_number(stored[row][col] if row < len(stored) and col < len(stored[row]) else None)
             ratios.append(float(value) if value is not None else 1.0)
             continue
         ratios.append(
@@ -1707,7 +1705,7 @@ def _stored_selected_ratios(method: Mapping[str, Any]) -> list[float]:
             if col < len(selected_row) and selected_row[col] == 1:
                 chosen = row
                 break
-        value = canonical_number(values[chosen][col] if chosen < len(values) and col < len(values[chosen]) else None)
+        value = canonical_input_number(values[chosen][col] if chosen < len(values) and col < len(values[chosen]) else None)
         ratios.append(float(value) if value is not None else 1.0)
     return ratios
 
@@ -1725,8 +1723,8 @@ def _selected_development_chain(method: Mapping[str, Any]) -> list[float]:
     ratios = _stored_selected_ratios(method)
     curves = _tab(method, "curves_tab")
     selected = curves.get("selected_values") if isinstance(curves.get("selected_values"), list) else []
-    if len(selected) == len(ratios) and all(canonical_number(value) is not None for value in selected):
-        return [float(canonical_number(value)) for value in selected]
+    if len(selected) == len(ratios) and all(canonical_input_number(value) is not None for value in selected):
+        return [float(canonical_input_number(value)) for value in selected]
     return ratios
 
 
@@ -1795,7 +1793,7 @@ def dfm_percent_developed_vector(payload: Mapping[str, Any]) -> list[float | int
     for row in range(len(data["input_data_triangle_values"])):
         latest_col = _latest_column(data, row)
         factor = cumulative[latest_col] if latest_col is not None and latest_col < len(cumulative) else None
-        out.append(canonical_number(1.0 / float(factor)) if factor else None)
+        out.append(canonical_input_number(1.0 / float(factor)) if factor else None)
     return out
 
 
@@ -1808,7 +1806,7 @@ def _calculate_ultimate(payload: dict[str, Any]) -> list[Any]:
         if latest_col is None or latest_col >= len(cumulative) or cumulative[latest_col] is None:
             out.append(None)
             continue
-        out.append(canonical_number(float(row_values[latest_col]) * float(cumulative[latest_col])))
+        out.append(canonical_input_number(float(row_values[latest_col]) * float(cumulative[latest_col])))
     return out
 
 
@@ -1866,7 +1864,7 @@ def recalculate_dfm_method(
     method["curves_tab"] = normalize_curves_tab(method.get("curves_tab"), len(stored_chain) - 1, stored_chain[:-1])
     curves = curves_table(stored_chain[:-1], stored_chain[-1] if stored_chain else 1.0, method["curves_tab"])
     method["curves_tab"]["selected_values"] = [
-        canonical_number(value) for value in [*curves["selected_values"], curves["selected_tail"]]
+        canonical_input_number(value) for value in [*curves["selected_values"], curves["selected_tail"]]
     ]
     method["results_tab"]["ultimate_vector"] = _calculate_ultimate(method)
     if update_refresh_timestamp:

@@ -23,13 +23,13 @@ export function canonicalRatioBasisNames(names) {
   return out;
 }
 
+// Carried at the precision it was observed with (result_selection_service._round_number
+// mirror). Every value is another method's ultimate copied in, so quantizing the copy
+// made a weighted average of several ultimates disagree with the same average in ResQ.
 export function roundResultSelectionNumber(value) {
   if (value === null || value === undefined || value === "") return null;
   const number = Number(value);
-  if (!Number.isFinite(number)) return null;
-  const factor = 10 ** RESULT_SELECTION_VALUE_DECIMAL_PLACES;
-  const rounded = Math.round((Math.abs(number) + Number.EPSILON) * factor) / factor;
-  return number < 0 ? -rounded : rounded;
+  return Number.isFinite(number) ? number : null;
 }
 
 export function roundResultSelectionVector(values) {

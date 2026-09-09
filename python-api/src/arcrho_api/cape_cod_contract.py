@@ -20,7 +20,7 @@ from typing import Any, Iterable, Mapping
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
 from .dataset_display_contract import normalize_show_subtotal
-from .dfm_contract import aggregate_vector_values, canonical_number
+from .dfm_contract import aggregate_vector_values, canonical_input_number
 from .revision_contract import fingerprint
 from .sidecar_audit_contract import (
     AUDIT_ACTION_INSERT,
@@ -95,9 +95,16 @@ def _labels(value: Any) -> list[str]:
 
 
 def _number(value: Any) -> float | int | None:
-    """Canonicalize JSON numbers without retaining producer-specific 1 vs 1.0 types."""
+    """Canonicalize JSON numbers without retaining producer-specific 1 vs 1.0 types.
 
-    result = canonical_number(value)
+    The number is kept at the precision it was observed with. A percentage
+    developed, an a-priori ratio and an ultimate all come from a DFM that
+    chains its factors in full double precision, so quantizing the copy here
+    would reintroduce, one method further down, exactly the drift from ResQ the
+    chain was fixed to remove.
+    """
+
+    result = canonical_input_number(value)
     if isinstance(result, float) and result.is_integer():
         return int(result)
     return result
@@ -169,8 +176,9 @@ def _rate(value: Any) -> float | int:
     """Canonicalize a rate/factor parameter at eight decimals.
 
     Rates are displayed as percentages with six decimals (the ResQ Trend Rate
-    precision), so they need eight decimal places as decimals; the shared
-    six-decimal ``canonical_number`` would visibly change the displayed rate.
+    precision), so they need eight decimal places as decimals. Eight is what
+    the box itself offers rather than a projection of a computed number, so a
+    rate keeps every digit a user typed or ResQ supplied.
     """
 
     number = _finite(value)

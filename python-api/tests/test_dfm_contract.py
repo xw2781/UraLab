@@ -518,8 +518,9 @@ class DfmContractTests(unittest.TestCase):
             timestamp="later",
         )
         values = refreshed["ratios_tab"]["average_formulas"]["values"]
-        # "User B" col 0 = Simple-all (1.5) * 1.1 = 1.65; User A = 1.65 * 1.02.
-        self.assertEqual(values[2][0], 1.683)
+        # "User B" col 0 = Simple-all (1.5) * 1.1; User A multiplies that by 1.02.
+        # The stored factor is the double the chain produced, not a rounded copy.
+        self.assertEqual(values[2][0], 1.5 * 1.1 * 1.02)
         self.assertEqual(values[2][1], 1.5)
 
         # A partial mapping keeps the stored evaluation for the missing reference.
@@ -547,7 +548,7 @@ class DfmContractTests(unittest.TestCase):
             timestamp="same",
         )
         # The internal formula re-evaluates even without reference values.
-        self.assertEqual(method["ratios_tab"]["average_formulas"]["values"][3][0], 1.65)
+        self.assertEqual(method["ratios_tab"]["average_formulas"]["values"][3][0], 1.5 * 1.1)
 
         refreshed = recalculate_dfm_method(
             method,
@@ -555,8 +556,8 @@ class DfmContractTests(unittest.TestCase):
             timestamp="later",
         )
         values = refreshed["ratios_tab"]["average_formulas"]["values"]
-        # User A col 0 = User B (1.65) * resolved cutoff 1.02.
-        self.assertEqual(values[2][0], 1.683)
+        # User A col 0 = User B (1.5 * 1.1) * resolved cutoff 1.02.
+        self.assertEqual(values[2][0], 1.5 * 1.1 * 1.02)
 
     def test_round_rounds_half_up_on_the_decimal_text(self) -> None:
         self.assertEqual(round_half_up(2.38625, 4), 2.3863)
@@ -564,13 +565,14 @@ class DfmContractTests(unittest.TestCase):
         self.assertEqual(round_half_up(1.5), 2.0)
         self.assertEqual(round_half_up(1.35735, 4), 1.3574)
 
-    def test_an_average_row_enters_a_formula_at_the_methods_decimal_places(self) -> None:
+    def test_an_average_row_enters_a_formula_whole(self) -> None:
         payload = owned_payload()
         payload["details_tab"]["decimal_places"] = 4
         formulas = payload["ratios_tab"]["average_formulas"]
         formulas["inputs"][3][1] = '= "Volume - all" * 1.1'
-        # Volume - all in column 1 is 400/300, a repeating ratio, so the row a
-        # reader sees at four decimals is not the row stored at six.
+        # Volume - all in column 1 is 400/300, a ratio with no exact decimal
+        # form. ResQ chains the factor it computed, so the formula takes every
+        # digit of it rather than the four the Ratios tab prints.
         method = recalculate_dfm_method(
             payload,
             input_snapshot=input_snapshot(values=[[100, 300, 400], [200, 430, None], [400, None, None]]),
@@ -578,14 +580,30 @@ class DfmContractTests(unittest.TestCase):
             timestamp="same",
         )
         values = method["ratios_tab"]["average_formulas"]["values"]
-        self.assertEqual(values[0][1], 1.333333)
-        self.assertEqual(values[3][1], canonical_number(1.3333 * 1.1))
+        self.assertEqual(values[0][1], 400 / 300)
+        self.assertEqual(values[3][1], (400 / 300) * 1.1)
 
-        # The same method printed at six decimals multiplies the stored row.
+        # The Decimal Places setting is presentation only: it moves no factor.
         method["details_tab"]["decimal_places"] = 6
         wider = recalculate_dfm_method(method, timestamp="later")
         wider_values = wider["ratios_tab"]["average_formulas"]["values"]
-        self.assertEqual(wider_values[3][1], canonical_number(1.333333 * 1.1))
+        self.assertEqual(wider_values[3][1], (400 / 300) * 1.1)
+
+    def test_a_round_in_a_formula_still_takes_the_row_at_that_precision(self) -> None:
+        payload = owned_payload()
+        payload["details_tab"]["decimal_places"] = 4
+        formulas = payload["ratios_tab"]["average_formulas"]
+        # What the "Apply Growth and Cutoff Adjustments" macro writes: the
+        # rounding a reserve review wants is named by the formula itself.
+        formulas["inputs"][3][1] = '= ROUND("Volume - all", 4) * 1.1'
+        method = recalculate_dfm_method(
+            payload,
+            input_snapshot=input_snapshot(values=[[100, 300, 400], [200, 430, None], [400, None, None]]),
+            ratio_basis_snapshot=basis_snapshot(),
+            timestamp="same",
+        )
+        values = method["ratios_tab"]["average_formulas"]["values"]
+        self.assertEqual(values[3][1], 1.3333 * 1.1)
 
     def test_round_in_a_formula_fixes_an_operand_before_it_multiplies(self) -> None:
         payload = owned_payload()

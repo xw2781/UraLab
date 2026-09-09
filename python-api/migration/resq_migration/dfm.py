@@ -14,6 +14,7 @@ from arcrho_api.combined_adjustment import (
 from arcrho_api.dfm_contract import (
     DFM_JSON_FORMAT,
     apply_owned_patch,
+    canonical_input_number,
     canonical_number,
     persisted_projection,
     recalculate_dfm_method,
@@ -225,7 +226,7 @@ def _copy_local_user_entry_inputs(remote_payload: dict, local_payload: dict) -> 
         while len(remote_display_input_row) <= remote_col:
             remote_display_input_row.append("")
         remote_row[remote_col] = formula_text
-        remote_value_row[remote_col] = canonical_number(local_value)
+        remote_value_row[remote_col] = canonical_input_number(local_value)
         remote_display_input_row[remote_col] = _clean_name(
             local_display_input_row[local_col] if local_col < len(local_display_input_row) else ""
         )
@@ -658,7 +659,7 @@ def _ratio_basis_snapshot(
 
     try:
         basis_values = [
-            canonical_number(basis.ValuesByIndex(index))
+            canonical_input_number(basis.ValuesByIndex(index))
             for index in range(1, int(dfm.OriginCount) + 1)
         ]
     except Exception as exc:
@@ -874,17 +875,23 @@ def export_dfm(
 
     # values[formula_row][dev_col] = computed average LDF; the last column is
     # the row's "- Ult" tail factor.
+    #
+    # Both are kept exactly as ResQ holds them. A User Entry row and a benchmark
+    # row are never re-derived from the triangle, so whatever is stored here is
+    # the factor ArcRho's own ultimate chains; rounding it to the Details tab's
+    # Decimal Places would make the chain reproduce the printed number instead
+    # of ResQ's. The Ratios tab still prints it at the display precision.
     values: list[list] = []
     for k, raw_idx_0 in enumerate(resq_idx_map):
         resq_formula_idx = raw_idx_0 + 1  # back to 1-based
         row: list = []
         for j in dev_rng:
             if j == dev_count:
-                row.append(round(float(definitions[k]["tail_factor"]), decimal_places))
+                row.append(float(definitions[k]["tail_factor"]))
                 continue
             try:
                 v = dfm.AverageRatioValues(j, resq_formula_idx)
-                row.append(round(float(v), decimal_places) if v is not None else None)
+                row.append(float(v) if v is not None else None)
             except Exception as exc:
                 _strict_dfm_failure(
                     strict,

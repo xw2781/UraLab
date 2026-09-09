@@ -890,15 +890,28 @@ class ResqDataMigrationGraphTests(unittest.TestCase):
         self.assertNotIn("sources", payload["method_tab"])
         self.assertEqual(payload["method_tab"]["loaded_datasets"][0]["source_kind"], "input")
         self.assertEqual(payload["method_tab"]["loaded_datasets"][0]["origin_length"], 12)
-        self.assertEqual(payload["method_tab"]["loaded_datasets"][0]["values"], [10.123457, 20.246914])
-        self.assertEqual(payload["method_tab"]["loaded_datasets"][0]["weights"], [1.987654, 1.987654])
-        self.assertEqual(payload["method_tab"]["calculated_ultimate"], [10.123457, 20.246914])
-        self.assertEqual(payload["method_tab"]["selected_ultimate"], [10.123457, 200.246914])
+        self.assertEqual(
+            payload["method_tab"]["loaded_datasets"][0]["values"],
+            [10.123456789, 2 * 10.123456789],
+        )
+        self.assertEqual(
+            payload["method_tab"]["loaded_datasets"][0]["weights"],
+            [1.987654321, 1.987654321],
+        )
+        self.assertEqual(
+            payload["method_tab"]["calculated_ultimate"], [10.123456789, 2 * 10.123456789]
+        )
+        self.assertEqual(
+            payload["method_tab"]["selected_ultimate"],
+            [10.123456789, 2 * 100.123456789],
+        )
         self.assertEqual(payload["method_tab"]["ratio_basis_values"], [{
             "name": "Earned Premium",
-            "values": [1000.123457, 2000.246914],
+            "values": [1000.123456789, 2 * 1000.123456789],
         }])
-        self.assertEqual(payload["method_tab"]["ultimate_overrides"], [None, 200.246914])
+        self.assertEqual(
+            payload["method_tab"]["ultimate_overrides"], [None, 2 * 100.123456789]
+        )
 
     def test_write_result_selection_export_uses_simplified_method_filename(self) -> None:
         payload = {

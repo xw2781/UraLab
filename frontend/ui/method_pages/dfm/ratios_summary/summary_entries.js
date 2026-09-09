@@ -19,7 +19,7 @@ const {
   getShowNaBorders, getRatioSummaryRaf, setRatioSummaryRaf,
   getLastSummaryCtxRowId, setLastSummaryCtxRowId,
   getEffectiveDevLabelsForModel, getRatioHeaderLabels, buildSummaryRows,
-  buildExcludedSetForColumn, parsePeriodsValue, parseExcludeValue, getDfmDecimalPlaces,
+  buildExcludedSetForColumn, parsePeriodsValue, parseExcludeValue,
   getSummaryConfigKey, loadCustomSummaryRows, saveCustomSummaryRows,
   readExcelCell, readExcelCellsBatch, openExcelWorkbook,
   buildExcelRangeSourceCells, containsExcelRef, excelColumnFromIndex, findExcelRefsInline,
@@ -521,11 +521,9 @@ function buildSummaryReferenceValues(_summaryTable, col) {
   );
   const cache = new Map();
   const visiting = new Set();
-  const decimals = getDfmDecimalPlaces();
   labelToId.forEach((rowId, label) => {
     const value = averageRowReferenceValue(
       computeSummaryRowValueForColumn(model, col, rowId, cache, visiting, labelToId, lastCol),
-      decimals,
     );
     if (Number.isFinite(value)) out.set(label, Number(value));
   });
@@ -685,7 +683,6 @@ function computeSummaryRowValueForColumn(model, col, rowId, cache, visiting, lab
   let value = 1;
   if (isUserEntryConfig(cfg)) {
     // A referenced row enters the formula at the precision the tab prints it at.
-    const decimals = getDfmDecimalPlaces();
     const storedInput = String(getUserEntryInputForCol(cfg, col) || "").trim();
     // Substitute dataset references with their last-resolved session values so
     // formulas that mix dataset references with average-formula row references
@@ -722,7 +719,6 @@ function computeSummaryRowValueForColumn(model, col, rowId, cache, visiting, lab
           if (!depId || String(depId) === key) continue;
           const depValue = averageRowReferenceValue(
             computeSummaryRowValueForColumn(model, col, depId, cache, visiting, labelToId, lastCol),
-            decimals,
           );
           if (Number.isFinite(depValue)) refValues.set(label, depValue);
         }
@@ -741,7 +737,6 @@ function computeSummaryRowValueForColumn(model, col, rowId, cache, visiting, lab
         if (!depId || String(depId) === key) continue;
         const depValue = averageRowReferenceValue(
           computeSummaryRowValueForColumn(model, col, depId, cache, visiting, labelToId, lastCol),
-          decimals,
         );
         if (Number.isFinite(depValue)) refValues.set(label, depValue);
       }

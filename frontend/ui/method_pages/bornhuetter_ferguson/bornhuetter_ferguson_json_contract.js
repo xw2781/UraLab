@@ -6,12 +6,14 @@ function text(value) {
   return String(value ?? "").trim();
 }
 
+// Kept at the precision it was observed with (bornhuetter_ferguson_contract._number
+// mirror). A percentage developed and an ultimate come from a DFM that chains its
+// factors in full double precision, so quantizing the copy here would put the drift
+// from ResQ back one method further down.
 export function roundBornhuetterFergusonNumber(value) {
   if (value === null || value === undefined || value === "") return null;
   const number = Number(value);
-  if (!Number.isFinite(number)) return null;
-  const rounded = Math.round(Math.abs(number) * 1_000_000) / 1_000_000;
-  return number < 0 ? -rounded : rounded;
+  return Number.isFinite(number) ? number : null;
 }
 
 export function roundBornhuetterFergusonVector(values) {

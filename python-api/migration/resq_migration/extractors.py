@@ -1848,14 +1848,12 @@ def _rs_json_number(value):
         return None
     if not math.isfinite(number):
         return None
-    try:
-        rounded = Decimal(str(abs(number))).quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP)
-    except InvalidOperation:
-        return None
     if isinstance(value, int):
         return value
-    result = float(rounded)
-    return -result if number < 0 else result
+    # Carried whole, matching result_selection_service._round_number: the value
+    # is a ResQ ultimate, and rounding the copy is what made ArcRho's weighted
+    # average disagree with ResQ's.
+    return 0.0 if number == 0 else number
 
 def _result_selection_source_kind(name: str, dataset_type: str, data_format: str, method_type_code: int) -> str:
     if method_type_code == METHOD_TYPE_DFM_CODE:

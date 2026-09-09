@@ -46,14 +46,13 @@ export function roundHalfUp(value, decimals = 0) {
 }
 
 // The value an average row contributes to a User Entry formula. A row enters
-// the formula at the precision the Ratios tab prints it at, the method's own
-// Decimal Places, rather than at the six decimals it is stored with, so a
-// reviewer can multiply the digits shown on screen and land on the User Entry
-// factor exactly. `arcrho_api.dfm_contract.average_row_reference_value` is the
-// same rule for the server, and the two must agree on every operand.
-export function averageRowReferenceValue(value, decimals) {
-  if (!Number.isFinite(value)) return null;
-  return roundHalfUp(roundRatio(value), decimals);
+// the formula with every digit it holds, because ResQ chains the factor it
+// computed rather than the one it printed. A formula that wants the printed
+// number asks for it: ROUND("Simple - 2", 4).
+// `arcrho_api.dfm_contract.average_row_reference_value` is the same rule for
+// the server, and the two must agree on every operand.
+export function averageRowReferenceValue(value) {
+  return Number.isFinite(value) ? value : null;
 }
 
 export function formatRatio(value, decimals = 4) {

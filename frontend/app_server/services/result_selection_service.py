@@ -205,21 +205,29 @@ def _commit_text_files(files: Dict[str, str], *, last_paths: Iterable[str] = ())
 
 
 def _round_number(value: Any) -> float | int | None:
+    """Return one Result Selection number at the precision it was observed with.
+
+    Every value here is a method ultimate produced somewhere else and copied in:
+    a DFM chain, a Bornhuetter-Ferguson, a Cape Cod. Quantizing the copy made
+    the weighted average of several ultimates disagree with the same average
+    taken in ResQ, and the published selection carried the difference on to
+    everything that reads it. The number is therefore carried whole, exactly as
+    the input triangle and the DFM factor chain already are.
+    """
+
     if value is None or isinstance(value, bool) or value == "":
         return None
     try:
         number = float(value)
-        if not math.isfinite(number):
-            return None
-        rounded = Decimal(str(abs(number))).quantize(_QUANTUM, rounding=ROUND_HALF_UP)
-    except (TypeError, ValueError, InvalidOperation):
+    except (TypeError, ValueError):
         return None
-    result = float(rounded)
-    if number < 0:
-        result = -result
+    if not math.isfinite(number):
+        return None
+    if number == 0:
+        number = 0.0
     if isinstance(value, int) and not isinstance(value, bool):
-        return int(result)
-    return result
+        return int(number)
+    return number
 
 
 def _round_vector(values: Any) -> List[float | int | None]:
@@ -774,7 +782,9 @@ def _dependency_values(
             exact=exact,
         )
     try:
-        frame = pd.read_csv(path, header=None, dtype="float64", keep_default_na=True)
+        frame = pd.read_csv(
+            path, header=None, dtype="float64", keep_default_na=True, float_precision="round_trip"
+        )
     except Exception as exc:
         raise RuntimeError(f"Unable to read '{dataset_name}': {exc}") from exc
     rows = frame.to_numpy().tolist()

@@ -55,15 +55,21 @@ test("ROUND in a User Entry formula fixes the operand before it multiplies", () 
   assert.equal(evaluate("= ROUND(1.5) + ROUND(2.5, 0)"), 5);
 });
 
-test("an average row enters a formula at the method's decimal places", () => {
-  // 400/300 stored at six decimals, read at the four the Ratios tab prints.
-  assert.equal(averageRowReferenceValue(1.3333333333, 4), 1.3333);
-  assert.equal(averageRowReferenceValue(1.3333333333, 6), 1.333333);
-  assert.equal(averageRowReferenceValue(2.386254, 4), 2.3863);
-  assert.equal(averageRowReferenceValue(Number.NaN, 4), null);
+test("an average row enters a formula whole", () => {
+  // ResQ chains the factor it computed, so a referenced row keeps every digit
+  // it holds. Nothing is rounded on the formula's behalf.
+  assert.equal(averageRowReferenceValue(1.3333333333), 1.3333333333);
+  assert.equal(averageRowReferenceValue(2.386254), 2.386254);
+  assert.equal(averageRowReferenceValue(Number.NaN), null);
 
-  const rows = new Map([["Volume - all", averageRowReferenceValue(1.3333333333, 4)]]);
-  assert.ok(Math.abs(evaluate('= "Volume - all" * 1.1', rows) - 1.3333 * 1.1) < 1e-12);
+  const rows = new Map([["Volume - all", averageRowReferenceValue(1.3333333333)]]);
+  assert.ok(Math.abs(evaluate('= "Volume - all" * 1.1', rows) - 1.3333333333 * 1.1) < 1e-12);
+
+  // The rounding a reserve review wants is named by the formula itself, which
+  // is what "Apply Growth and Cutoff Adjustments" writes.
+  assert.ok(
+    Math.abs(evaluate('= ROUND("Volume - all", 4) * 1.1', rows) - 1.3333 * 1.1) < 1e-12,
+  );
 });
 
 test("no other word reaches the evaluator", () => {
