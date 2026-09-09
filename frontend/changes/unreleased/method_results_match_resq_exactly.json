@@ -1,0 +1,15 @@
+{
+  "type": "fix",
+  "scope": "methods",
+  "audience": "user",
+  "summary": "Method results now match ResQ exactly. ArcRho was storing several figures rounded to the number of decimals it displays them at, and then calculating with the rounded copy, which made an ultimate drift from ResQ by a few cents at older origin years and up to about 0.2 at the newest one.",
+  "details": [
+    "A development factor brought in from ResQ is kept exactly as ResQ holds it, instead of being cut back to the Decimal Places on the Details tab.",
+    "The whole chain a Development Factor Method multiplies together now carries its full accuracy, and so do the percentage developed and the ultimate it publishes.",
+    "Bornhuetter Ferguson, Cape Cod and Result Selection no longer round the vectors they read from another method, so the error can no longer grow as it passes down the chain.",
+    "Thirteen places that read a saved table back from disk were quietly losing accuracy in the last few digits. They now read every digit.",
+    "The Ratios tab still prints to the Decimal Places you choose; that setting now only changes what is shown, never what is calculated.",
+    "Apply Growth and Cutoff Adjustments writes its rounding into the formula again, as ROUND(\"Simple - 2\", 4) around the method's own average row, so the notes still reconcile with the numbers on screen. The growth and cutoff factors are left alone because they already arrive at four decimals.",
+    "The formula bar hides that ROUND while you are only reading the formula, and shows it as soon as you click into the cell to edit."
+  ]
+}
